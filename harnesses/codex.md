@@ -30,7 +30,15 @@ On Windows use the full path to `basic-memory.exe`
 ## graphify
 
 ```bash
-graphify install --platform codex      # writes AGENTS.md section
+graphify install --platform codex
+```
+
+Note: `graphify install` writes to `~/.codex/skills/graphify/` and ignores
+`$CODEX_HOME`. If your Codex runs with a non-default `CODEX_HOME` (e.g. a
+managed / orca setup), copy the folder over:
+
+```bash
+cp -r ~/.codex/skills/graphify "$CODEX_HOME/skills/"
 ```
 
 ## Removing

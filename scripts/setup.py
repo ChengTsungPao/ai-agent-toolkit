@@ -208,9 +208,11 @@ def wire_claude_code(tools) -> int:
     _copy_skill(Path.home() / ".claude" / "skills" / "ai-dev-env")
     for t in _mcp_tools(tools):
         m = t["mcp"]
+        # -e/--env is variadic, so it must come *after* the server name.
         env = " ".join(f"-e {k}={v}" for k, v in t.get("env", {}).items())
         args = " ".join(m.get("args", []))
-        run(f'claude mcp add --scope user {env} {t["id"]} -- {m["command"]} {args}'.replace("  ", " "))
+        subprocess.run(f'claude mcp remove {t["id"]} -s user', shell=True, capture_output=True)
+        run(" ".join(f'claude mcp add --scope user {t["id"]} {env} -- {m["command"]} {args}'.split()))
     print(dim("  (graphify registers its own skill: run `graphify install --platform claude`)"))
     return 0
 
@@ -225,8 +227,9 @@ def wire_codex(tools) -> int:
         m = t["mcp"]
         args = " ".join(m.get("args", []))
         env = " ".join(f"--env {k}={v}" for k, v in t.get("env", {}).items())
-        # `codex mcp add <name> [--env K=V] -- <cmd> <args>`
-        if run(f'codex mcp add {env} {t["id"]} -- {shutil.which(m["command"]) or m["command"]} {args}') != 0:
+        cmd = shutil.which(m["command"]) or m["command"]
+        # `codex mcp add [--env K=V] <name> -- <cmd> <args>` — overwrites cleanly.
+        if run(" ".join(f'codex mcp add {env} {t["id"]} -- {cmd} {args}'.split())) != 0:
             print(yellow(f"  `codex mcp add` failed for {t['id']} — add manually to {codex_home}/config.toml"))
     print(dim("  graphify: run `graphify install --platform codex`"))
     return 0
