@@ -16,6 +16,22 @@ canonical = "guidelines/AGENTS.md"   # full text -> ~/.claude/AGENTS.md, $CODEX_
 # ~/.claude/CLAUDE.md gets only a generated one-line reference to AGENTS.md.
 # guidelines/CLAUDE.md is a copy-me template for project roots, not read by setup.py.
 
+# External plugin ecosystems — installed per-harness (not vendored) because they
+# are large and self-updating. `setup.py wire <harness>` runs the matching
+# install command; harnesses with no scriptable installer get the command
+# printed. `setup.py plugins` re-runs them.
+[[plugin]]
+id      = "superpowers"
+purpose = "Jesse Vincent's (obra) agentic software-development methodology: 20+ composable, auto-activating skills (TDD, systematic debugging, brainstorming, git worktrees, code review) plus a bootstrap that makes the agent actually check for a relevant skill before each task."
+docs    = "docs/tools/superpowers.md"
+[plugin.install]
+claude-code = "claude plugin install superpowers@claude-plugins-official"
+gemini-cli  = "gemini extensions install https://github.com/obra/superpowers"
+codex       = "# interactive: run `/plugins`, search 'superpowers', Install"
+cursor      = "# interactive: run `/add-plugin superpowers`"
+[plugin.verify]
+claude-code = "claude plugin list"
+
 # uv is the only hard prerequisite. The bootstrap scripts install it if missing;
 # it is listed here so `report` / `doctor` can see it, but it is self-managing.
 [[tool]]

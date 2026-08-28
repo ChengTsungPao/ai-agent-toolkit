@@ -8,9 +8,10 @@ Subcommands
 -----------
 report            (default) show every managed tool: installed?, purpose, usage
 install [tools]   install missing tools; asks "confirm each" vs "install all"
-wire <harness>    install bundled skills + MCP servers + guidelines into a harness
+wire <harness>    install bundled skills + MCP + guidelines + plugins into a harness
 guidelines        (re)install the always-on agent guidelines
 skills            (re)install the bundled skills/ into Claude Code + Codex
+plugins           (re)install external plugin ecosystems (e.g. superpowers)
 doctor            run each tool's verify command and report pass/fail
 
 Nothing here is destructive. `install` always prints a plan and asks first.
@@ -56,6 +57,10 @@ def load_manifest() -> dict:
 
 def load_tools() -> list[dict]:
     return load_manifest()["tool"]
+
+
+def load_plugins() -> list[dict]:
+    return load_manifest().get("plugin", [])
 
 
 GUIDE_BEGIN = "<!-- BEGIN ai-dev-env-guidelines -->"
@@ -161,6 +166,14 @@ def cmd_report(_args) -> int:
     print(f"\n{bold('Bundled skills'):<28} {', '.join(s.name for s in skills) if skills else dim('(none in skills/)')}")
     if skills:
         print(f"  {dim('install:')} python scripts/setup.py skills")
+
+    # external plugins
+    plugins = load_plugins()
+    if plugins:
+        print(f"\n{bold('External plugins')}")
+        for p in plugins:
+            print(f"  {bold(p['id']):<26} {p['purpose'][:90]}…")
+        print(f"  {dim('install:')} python scripts/setup.py plugins  (per-harness; some are interactive)")
 
     print(dim("\nharness wiring:  python scripts/setup.py wire <claude-code|codex|cursor|gemini-cli|generic>"))
     return 0
@@ -301,6 +314,22 @@ def _install_guidelines(harness: str) -> None:
         print(dim(f"  guidelines: load {REPO / 'guidelines' / 'AGENTS.md'} as always-on context"))
 
 
+def _install_plugins(harness: str) -> None:
+    plugins = load_plugins()
+    if not plugins:
+        return
+    for p in plugins:
+        cmd = p.get("install", {}).get(harness)
+        if not cmd:
+            print(dim(f"  plugin {p['id']}: no install path for {harness}"))
+            continue
+        if cmd.lstrip().startswith("#"):
+            print(yellow(f"  plugin {p['id']}: {cmd.lstrip('# ').strip()}"))
+            continue
+        rc = run(cmd)
+        print((green if rc == 0 else red)(f"  plugin {p['id']} {'installed' if rc == 0 else 'FAILED — install manually'}"))
+
+
 def wire_claude_code(tools) -> int:
     if shutil.which("claude") is None:
         print(red("  `claude` CLI not found — is Claude Code installed?"))
@@ -392,6 +421,7 @@ def cmd_wire(args) -> int:
     print(bold(f"\nwiring ai-dev-env into {args.harness}\n"))
     rc = fn(load_tools())
     _install_guidelines(args.harness)
+    _install_plugins(args.harness)
     return rc
 
 
@@ -401,6 +431,15 @@ def cmd_guidelines(args) -> int:
     for h in targets:
         print(dim(h))
         _install_guidelines(h)
+    return 0
+
+
+def cmd_plugins(args) -> int:
+    targets = [args.harness] if args.harness else ["claude-code"]
+    print(bold("\ninstalling external plugins\n"))
+    for h in targets:
+        print(dim(h))
+        _install_plugins(h)
     return 0
 
 
@@ -452,6 +491,10 @@ def main() -> int:
     ps = sub.add_parser("skills", help="install bundled skills/ into a harness")
     ps.add_argument("harness", nargs="?", choices=list(WIRERS), help="default: claude-code + codex")
     ps.set_defaults(fn=cmd_skills, harness=None)
+
+    pp = sub.add_parser("plugins", help="install external plugin ecosystems (e.g. superpowers)")
+    pp.add_argument("harness", nargs="?", choices=list(WIRERS), help="default: claude-code")
+    pp.set_defaults(fn=cmd_plugins, harness=None)
 
     sub.add_parser("doctor", help="verify each tool").set_defaults(fn=cmd_doctor)
 
