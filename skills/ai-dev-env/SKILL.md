@@ -61,10 +61,24 @@ what each tool does and how to drive it.
 uv run --python 3.12 "$REPO/scripts/setup.py" wire <claude-code|codex|cursor|gemini-cli|generic>
 ```
 
-This copies this SKILL.md into the harness's skills dir and registers each
-MCP-type tool. For `cursor` / `gemini-cli` / `generic` it prints the JSON block
-to merge (those clients have no reliable CLI). See `REPO/harnesses/<name>.md`
-for the per-harness details and anything the script can't automate.
+This (a) copies this SKILL.md into the harness's skills dir, (b) registers each
+MCP-type tool, and (c) installs the agent guidelines. For `cursor` /
+`gemini-cli` / `generic` it prints the JSON block to merge (those clients have
+no reliable CLI). See `REPO/harnesses/<name>.md` for per-harness details.
+
+## Agent guidelines
+
+`REPO/guidelines/AGENTS.md` holds always-on behavioral rules. `AGENTS.md` is
+canonical; `CLAUDE.md` just references it (better cross-harness compatibility).
+`wire` installs them; to (re)apply everywhere without a full wire:
+
+```
+uv run --python 3.12 "$REPO/scripts/setup.py" guidelines
+```
+
+Targets: `~/.claude/AGENTS.md` (+ a one-line ref in `~/.claude/CLAUDE.md`),
+`$CODEX_HOME/AGENTS.md`, `~/.gemini/GEMINI.md`. All edits are marker-delimited
+and idempotent.
 
 ## Adding a new tool later
 

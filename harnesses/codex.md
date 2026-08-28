@@ -5,7 +5,8 @@
 - copies the skill → `$CODEX_HOME/skills/ai-dev-env/SKILL.md`
   (`CODEX_HOME` defaults to `~/.codex`; some managed setups override it —
   the script honours the env var)
-- `codex mcp add <id> --env <K=V> -- <command> <args>` for each MCP tool
+- `codex mcp add --env <K=V> <id> -- <command> <args>` for each MCP tool
+- guidelines: full text → `$CODEX_HOME/AGENTS.md` (marker-delimited block)
 
 ## Manual / verification
 

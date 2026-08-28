@@ -7,6 +7,14 @@
 # ---------------------------------------------------------------------------
 schema_version = 1
 
+# Always-on behavioral guidelines installed into each harness's instruction
+# file. AGENTS.md is canonical (cross-harness standard); CLAUDE.md just points
+# at it, so there is one source of truth. `setup.py guidelines` and
+# `setup.py wire <harness>` install these.
+[guidelines]
+canonical  = "guidelines/AGENTS.md"   # full text -> AGENTS.md / GEMINI.md
+claude_md  = "guidelines/CLAUDE.md"   # short reference stub -> ~/.claude/CLAUDE.md
+
 # uv is the only hard prerequisite. The bootstrap scripts install it if missing;
 # it is listed here so `report` / `doctor` can see it, but it is self-managing.
 [[tool]]

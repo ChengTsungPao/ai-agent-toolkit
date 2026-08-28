@@ -3,7 +3,9 @@
 **Automated by** `setup.py wire claude-code`:
 
 - copies `skills/ai-dev-env/SKILL.md` → `~/.claude/skills/ai-dev-env/SKILL.md`
-- `claude mcp add --scope user -e <ENV> <id> -- <command> <args>` for each MCP tool
+- `claude mcp add --scope user <id> -e <ENV> -- <command> <args>` for each MCP tool
+- guidelines: full text → `~/.claude/AGENTS.md`; a one-line reference block
+  (marker-delimited) is appended to `~/.claude/CLAUDE.md`
 
 ## Manual / verification
 

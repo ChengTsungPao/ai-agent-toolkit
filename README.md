@@ -39,12 +39,24 @@ installs it if missing, then runs everything on a pinned Python.
 Full detail per tool: [`docs/tools/`](docs/tools/). Source of truth:
 [`manifest.toml`](manifest.toml).
 
+## Agent guidelines
+
+[`guidelines/AGENTS.md`](guidelines/AGENTS.md) — always-on behavioral rules
+(think before coding · simplicity first · surgical changes · goal-driven
+execution), after [Karpathy's notes](https://github.com/multica-ai/andrej-karpathy-skills)
+on LLM coding pitfalls. `AGENTS.md` is canonical (the cross-harness standard);
+`CLAUDE.md` / `GEMINI.md` just reference it, so there's one source of truth.
+
+`wire` installs them into a harness; `setup.py guidelines` (re)applies them
+everywhere.
+
 ## Commands
 
 ```
 setup.py report              # default — installed?, purpose, usage, what's missing
 setup.py install [ids] [--all|--each]
-setup.py wire <claude-code|codex|cursor|gemini-cli|generic>
+setup.py wire <claude-code|codex|cursor|gemini-cli|generic>   # skill + MCP + guidelines
+setup.py guidelines [harness]                                 # just the guidelines
 setup.py doctor              # verify each tool
 ```
 
@@ -73,10 +85,13 @@ add `[tool.mcp]` if it's an MCP server so `wire` registers it too.
 ## Layout
 
 ```
-manifest.toml            source of truth
+manifest.toml            source of truth (tools + guidelines)
 scripts/
   setup.py               orchestrator (stdlib only, py3.11+)
   install.sh / .ps1      bootstrap (ensure uv, run setup.py)
+guidelines/
+  AGENTS.md              canonical always-on agent rules
+  CLAUDE.md              project-level reference stub
 skills/ai-dev-env/       the portable skill
 harnesses/               per-harness wiring notes
 docs/tools/              per-tool docs

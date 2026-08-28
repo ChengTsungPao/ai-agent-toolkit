@@ -47,9 +47,42 @@ dim = lambda s: _c("2", s)
 
 
 # ── manifest ────────────────────────────────────────────────────────────────
-def load_tools() -> list[dict]:
+def load_manifest() -> dict:
     with MANIFEST.open("rb") as fh:
-        return tomllib.load(fh)["tool"]
+        return tomllib.load(fh)
+
+
+def load_tools() -> list[dict]:
+    return load_manifest()["tool"]
+
+
+GUIDE_BEGIN = "<!-- BEGIN ai-dev-env-guidelines -->"
+GUIDE_END = "<!-- END ai-dev-env-guidelines -->"
+
+
+def guidelines_text() -> str:
+    rel = load_manifest().get("guidelines", {}).get("canonical", "guidelines/AGENTS.md")
+    text = (REPO / rel).read_text(encoding="utf-8").lstrip()
+    # drop the repo-maintenance HTML comment header, if present
+    if text.startswith("<!--") and "-->" in text:
+        text = text[text.index("-->") + 3 :].lstrip()
+    return text
+
+
+def upsert_block(path: Path, body: str) -> str:
+    """Insert or replace a marker-delimited block in a text file. Returns action."""
+    block = f"{GUIDE_BEGIN}\n{body.rstrip()}\n{GUIDE_END}\n"
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+    if GUIDE_BEGIN in text and GUIDE_END in text:
+        pre = text[: text.index(GUIDE_BEGIN)]
+        post = text[text.index(GUIDE_END) + len(GUIDE_END) :].lstrip("\n")
+        new, action = pre + block + post, "updated"
+    else:
+        sep = "" if not text.strip() else (text if text.endswith("\n") else text + "\n") + "\n"
+        new, action = sep + block, "created" if not text.strip() else "appended"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(new, encoding="utf-8")
+    return action
 
 
 def install_cmd(tool: dict) -> str | None:
@@ -113,6 +146,14 @@ def cmd_report(_args) -> int:
         print(yellow(f"missing: {', '.join(missing)}   →   python scripts/setup.py install"))
     else:
         print(green("all managed tools installed"))
+
+    # guidelines status
+    claude_agents = Path.home() / ".claude" / "AGENTS.md"
+    have = claude_agents.exists() and GUIDE_BEGIN in claude_agents.read_text(encoding="utf-8")
+    print(f"\n{bold('Agent guidelines'):<28} {green('● installed') if have else red('○ not installed')}")
+    print("  Always-on behavioral rules (AGENTS.md canonical, CLAUDE.md references it).")
+    print(f"  {dim('install:')} python scripts/setup.py guidelines")
+
     print(dim("\nharness wiring:  python scripts/setup.py wire <claude-code|codex|cursor|gemini-cli|generic>"))
     return 0
 
@@ -201,6 +242,42 @@ def _copy_skill(dest: Path) -> None:
     print(green(f"  skill  → {dest / 'SKILL.md'}"))
 
 
+CLAUDE_REF = (
+    "# Agent guidelines\n\n"
+    "Follow every guideline in `~/.claude/AGENTS.md` (shared cross-harness rules: "
+    "think before coding, simplicity first, surgical changes, goal-driven execution)."
+)
+
+
+def _codex_home() -> Path:
+    return Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+
+
+def _install_guidelines(harness: str) -> None:
+    """Install the always-on behavioral guidelines into a harness's instruction file.
+
+    AGENTS.md carries the full text; CLAUDE.md only references it.
+    All edits are marker-delimited and idempotent.
+    """
+    body = guidelines_text()
+    if harness == "claude-code":
+        home = Path.home() / ".claude"
+        a = upsert_block(home / "AGENTS.md", body)
+        c = upsert_block(home / "CLAUDE.md", CLAUDE_REF)
+        print(green(f"  guidelines → {home / 'AGENTS.md'} ({a}),  {home / 'CLAUDE.md'} ({c}, reference only)"))
+    elif harness == "codex":
+        p = _codex_home() / "AGENTS.md"
+        print(green(f"  guidelines → {p} ({upsert_block(p, body)})"))
+    elif harness == "gemini-cli":
+        p = Path.home() / ".gemini" / "GEMINI.md"
+        print(green(f"  guidelines → {p} ({upsert_block(p, body)})"))
+    elif harness == "cursor":
+        print(dim(f"  guidelines: add {REPO / 'guidelines' / 'AGENTS.md'} as a project AGENTS.md"))
+        print(dim("             or .cursor/rules/agents.mdc (alwaysApply: true)"))
+    else:
+        print(dim(f"  guidelines: load {REPO / 'guidelines' / 'AGENTS.md'} as always-on context"))
+
+
 def wire_claude_code(tools) -> int:
     if shutil.which("claude") is None:
         print(red("  `claude` CLI not found — is Claude Code installed?"))
@@ -285,7 +362,18 @@ def cmd_wire(args) -> int:
         print(red(f"unknown harness '{args.harness}'. choices: {', '.join(WIRERS)}"))
         return 2
     print(bold(f"\nwiring ai-dev-env into {args.harness}\n"))
-    return fn(load_tools())
+    rc = fn(load_tools())
+    _install_guidelines(args.harness)
+    return rc
+
+
+def cmd_guidelines(args) -> int:
+    targets = [args.harness] if args.harness else ["claude-code", "codex", "gemini-cli"]
+    print(bold("\ninstalling agent guidelines\n"))
+    for h in targets:
+        print(dim(h))
+        _install_guidelines(h)
+    return 0
 
 
 # ── doctor ─────────────────────────────────────────────────────────────────
@@ -312,9 +400,13 @@ def main() -> int:
     g.add_argument("--each", dest="mode", action="store_const", const="each", help="confirm each tool")
     pi.set_defaults(fn=cmd_install, mode=None)
 
-    pw = sub.add_parser("wire", help="register skill + MCP into a harness")
+    pw = sub.add_parser("wire", help="register skill + MCP + guidelines into a harness")
     pw.add_argument("harness", choices=list(WIRERS))
     pw.set_defaults(fn=cmd_wire)
+
+    pg = sub.add_parser("guidelines", help="install always-on agent guidelines (AGENTS.md + CLAUDE.md ref)")
+    pg.add_argument("harness", nargs="?", choices=list(WIRERS), help="default: claude-code, codex, gemini-cli")
+    pg.set_defaults(fn=cmd_guidelines, harness=None)
 
     sub.add_parser("doctor", help="verify each tool").set_defaults(fn=cmd_doctor)
 
