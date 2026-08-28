@@ -1,0 +1,59 @@
+# ai-dev-env — tool manifest (source of truth)
+#
+# Every tool this repo manages is one [[tool]] block. `setup.py` reads this file
+# to report status, install what is missing, and wire tools into AI harnesses.
+# Hand-edit freely; keep it valid TOML.
+
+# ---------------------------------------------------------------------------
+schema_version = 1
+
+# uv is the only hard prerequisite. The bootstrap scripts install it if missing;
+# it is listed here so `report` / `doctor` can see it, but it is self-managing.
+[[tool]]
+id       = "uv"
+name     = "uv"
+purpose  = "Python toolchain + isolated tool installer. Every other CLI tool here is installed as a `uv tool`, so each gets its own venv and never collides with system Python."
+kind     = "prerequisite"
+verify   = "uv --version"
+docs     = "https://docs.astral.sh/uv/"
+[tool.install]
+macos   = "curl -LsSf https://astral.sh/uv/install.sh | sh"
+linux   = "curl -LsSf https://astral.sh/uv/install.sh | sh"
+windows = "powershell -ExecutionPolicy Bypass -c \"irm https://astral.sh/uv/install.ps1 | iex\""
+[tool.usage]
+short = "uv tool install <pkg> · uv tool upgrade --all · uv run --python 3.12 script.py"
+
+# ---------------------------------------------------------------------------
+[[tool]]
+id       = "basic-memory"
+name     = "Basic Memory"
+purpose  = "Private, local, human-editable knowledge memory shared across every AI harness. Notes are plain Markdown on disk (~/basic-memory), indexed in a local SQLite db with local embeddings. No cloud, no account. Review/curate changes in any editor, Obsidian, or via git."
+kind     = "mcp"
+verify   = "basic-memory --version"
+docs     = "docs/tools/basic-memory.md"
+[tool.install]
+default = "uv tool install basic-memory"
+[tool.env]
+BASIC_MEMORY_NO_PROMOS = "1"
+[tool.post_install]
+# run after install, before wiring. Cheap + idempotent.
+default = "basic-memory config set cloud_promo_opt_out true"
+[tool.mcp]
+command = "basic-memory"
+args    = ["mcp"]
+[tool.usage]
+short = "Ask the agent to \"remember\" / \"recall\" things; it calls the write_note / search_notes / build_context MCP tools. Files live in ~/basic-memory/{code,knowledge,conversations,research}. `basic-memory` CLI: status · reindex · doctor · tool search-notes."
+
+# ---------------------------------------------------------------------------
+[[tool]]
+id       = "graphify"
+name     = "graphify"
+purpose  = "Turns a codebase (or folder of docs/PDFs) into a queryable knowledge graph via local tree-sitter AST parsing + Leiden community detection. Produces graph.html, GRAPH_REPORT.md, graph.json. Complements Basic Memory: graphify is derived/disposable structure over code, Basic Memory is curated long-term facts."
+kind     = "cli+skill"
+verify   = "graphify --version"
+pypi     = "graphifyy"
+docs     = "docs/tools/graphify.md"
+[tool.install]
+default = "uv tool install graphifyy"
+[tool.usage]
+short = "In a harness: /graphify .  (build graph for current repo) · graphify query \"how does X work\" · graphify extract <path>. Registers its own skill per-harness via `graphify install`."
