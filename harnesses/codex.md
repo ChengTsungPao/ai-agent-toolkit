@@ -2,7 +2,7 @@
 
 **Automated by** `setup.py wire codex`:
 
-- copies the skill → `$CODEX_HOME/skills/ai-dev-env/SKILL.md`
+- copies every `skills/<name>/` bundle → `$CODEX_HOME/skills/<name>/`
   (`CODEX_HOME` defaults to `~/.codex`; some managed setups override it —
   the script honours the env var)
 - `codex mcp add --env <K=V> <id> -- <command> <args>` for each MCP tool
@@ -46,5 +46,6 @@ cp -r ~/.codex/skills/graphify "$CODEX_HOME/skills/"
 
 ```bash
 codex mcp remove basic-memory
-rm -rf "$CODEX_HOME/skills/ai-dev-env"
+# skills: rm -rf "$CODEX_HOME/skills/<name>"
+# guidelines: delete the marked block in "$CODEX_HOME/AGENTS.md"
 ```

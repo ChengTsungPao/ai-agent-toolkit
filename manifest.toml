@@ -12,8 +12,9 @@ schema_version = 1
 # at it, so there is one source of truth. `setup.py guidelines` and
 # `setup.py wire <harness>` install these.
 [guidelines]
-canonical  = "guidelines/AGENTS.md"   # full text -> AGENTS.md / GEMINI.md
-claude_md  = "guidelines/CLAUDE.md"   # short reference stub -> ~/.claude/CLAUDE.md
+canonical = "guidelines/AGENTS.md"   # full text -> ~/.claude/AGENTS.md, $CODEX_HOME/AGENTS.md, ~/.gemini/GEMINI.md
+# ~/.claude/CLAUDE.md gets only a generated one-line reference to AGENTS.md.
+# guidelines/CLAUDE.md is a copy-me template for project roots, not read by setup.py.
 
 # uv is the only hard prerequisite. The bootstrap scripts install it if missing;
 # it is listed here so `report` / `doctor` can see it, but it is self-managing.

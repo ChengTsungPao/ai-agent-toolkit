@@ -20,15 +20,16 @@ Merge into `~/.gemini/settings.json`:
 
 Windows: full path to `basic-memory.exe` in `"command"`.
 
-## Context
+## Guidelines
 
-Add a section to `~/.gemini/GEMINI.md` pointing at the skill, e.g.:
+`setup.py guidelines gemini-cli` writes the full guidelines (incl. the
+"Environment repo" pointer) as a marker-delimited block in `~/.gemini/GEMINI.md`.
 
-```
-## ai-dev-env
-When asked about installed tools or environment setup, read
-~/ai-dev-env/skills/ai-dev-env/SKILL.md and follow it.
-```
+## Skills
+
+Gemini CLI has no skills dir. `setup.py wire gemini-cli` prints the bundle
+paths; add each as a GEMINI.md section or a custom command if you want it
+always available.
 
 ## graphify
 

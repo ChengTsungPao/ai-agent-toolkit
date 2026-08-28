@@ -34,7 +34,7 @@ installs it if missing, then runs everything on a pinned Python.
 |---|---|
 | **uv** | Python toolchain; installs every other CLI as an isolated `uv tool` |
 | **Basic Memory** | private, local, **human-editable** Markdown memory shared across all harnesses (MCP) |
-| **graphify** | codebase → queryable knowledge graph (tree-sitter AST + Leiden), `/graphify` skill |
+| **graphify** | codebase → queryable knowledge graph (tree-sitter AST + Leiden), `/graphify` |
 
 Full detail per tool: [`docs/tools/`](docs/tools/). Source of truth:
 [`manifest.toml`](manifest.toml).
@@ -50,12 +50,23 @@ on LLM coding pitfalls. `AGENTS.md` is canonical (the cross-harness standard);
 `wire` installs them into a harness; `setup.py guidelines` (re)applies them
 everywhere.
 
+## Skills
+
+Drop a `skills/<name>/SKILL.md` bundle (see [`skills/README.md`](skills/README.md))
+and `wire` copies it into every harness's skills dir — `~/.claude/skills/`,
+`$CODEX_HOME/skills/`. Re-apply just the skills with `setup.py skills`.
+
+There is deliberately **no `ai-dev-env` skill** — the agent already learns about
+this repo from the "Environment repo" section that `guidelines` writes into
+`AGENTS.md`, and `setup.py report` is the live status command.
+
 ## Commands
 
 ```
 setup.py report              # default — installed?, purpose, usage, what's missing
 setup.py install [ids] [--all|--each]
-setup.py wire <claude-code|codex|cursor|gemini-cli|generic>   # skill + MCP + guidelines
+setup.py wire <claude-code|codex|cursor|gemini-cli|generic>   # skills + MCP + guidelines
+setup.py skills [harness]                                     # just the bundled skills
 setup.py guidelines [harness]                                 # just the guidelines
 setup.py doctor              # verify each tool
 ```
@@ -65,16 +76,9 @@ right Python), or directly with `uv run --python 3.12 scripts/setup.py ...`.
 
 ## Harnesses
 
-`wire` automates Claude Code and Codex (skill copy + MCP registration).
-Cursor / Gemini CLI / other MCP clients get a printed JSON block to paste —
-see [`harnesses/`](harnesses/).
-
-## The `ai-dev-env` skill
-
-[`skills/ai-dev-env/SKILL.md`](skills/ai-dev-env/SKILL.md) is installed into each
-harness by `wire`. Invoking it (`/ai-dev-env` in Claude Code) makes the agent
-report the current toolset — name, purpose, how to use — and, on request,
-install or wire what's missing.
+`wire` automates Claude Code and Codex (skill copy + MCP registration +
+guidelines). Cursor / Gemini CLI / other MCP clients get a printed JSON block to
+paste — see [`harnesses/`](harnesses/).
 
 ## Adding a tool
 
@@ -90,9 +94,9 @@ scripts/
   setup.py               orchestrator (stdlib only, py3.11+)
   install.sh / .ps1      bootstrap (ensure uv, run setup.py)
 guidelines/
-  AGENTS.md              canonical always-on agent rules
+  AGENTS.md              canonical always-on agent rules + env-repo pointer
   CLAUDE.md              project-level reference stub
-skills/ai-dev-env/       the portable skill
+skills/                  skill bundles installed into every harness
 harnesses/               per-harness wiring notes
 docs/tools/              per-tool docs
 ```

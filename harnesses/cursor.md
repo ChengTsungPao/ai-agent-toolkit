@@ -21,11 +21,17 @@ Merge into `~/.cursor/mcp.json` (global) or `<project>/.cursor/mcp.json`:
 
 Windows: set `"command"` to the full path of `basic-memory.exe`.
 
-## Skill as a rule
+## Guidelines + skills
 
-Create `<project>/.cursor/rules/ai-dev-env.mdc` (or add via Cursor Settings →
-Rules) with the body of `skills/ai-dev-env/SKILL.md`. Set it to
-`Agent Requested` with the description from the skill's frontmatter.
+Cursor has no global skills dir. Options:
+
+- Put `guidelines/AGENTS.md` at a project root as `AGENTS.md` (Cursor reads it),
+  or as `.cursor/rules/agents.mdc` with `alwaysApply: true`.
+- For each `skills/<name>/SKILL.md` you want active, add its body as a
+  `.cursor/rules/<name>.mdc` rule (`Agent Requested`, description from the
+  frontmatter).
+
+`setup.py wire cursor` prints the bundle paths.
 
 ## graphify
 

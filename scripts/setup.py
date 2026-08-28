@@ -8,7 +8,9 @@ Subcommands
 -----------
 report            (default) show every managed tool: installed?, purpose, usage
 install [tools]   install missing tools; asks "confirm each" vs "install all"
-wire <harness>    register the skill + MCP servers into a harness
+wire <harness>    install bundled skills + MCP servers + guidelines into a harness
+guidelines        (re)install the always-on agent guidelines
+skills            (re)install the bundled skills/ into Claude Code + Codex
 doctor            run each tool's verify command and report pass/fail
 
 Nothing here is destructive. `install` always prints a plan and asks first.
@@ -26,7 +28,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 MANIFEST = REPO / "manifest.toml"
-SKILL_DIR = REPO / "skills" / "ai-dev-env"
+SKILLS_DIR = REPO / "skills"
 
 OS = {"Windows": "windows", "Darwin": "macos", "Linux": "linux"}.get(platform.system(), "linux")
 IS_WINDOWS = OS == "windows"
@@ -154,6 +156,12 @@ def cmd_report(_args) -> int:
     print("  Always-on behavioral rules (AGENTS.md canonical, CLAUDE.md references it).")
     print(f"  {dim('install:')} python scripts/setup.py guidelines")
 
+    # bundled skills
+    skills = bundled_skills()
+    print(f"\n{bold('Bundled skills'):<28} {', '.join(s.name for s in skills) if skills else dim('(none in skills/)')}")
+    if skills:
+        print(f"  {dim('install:')} python scripts/setup.py skills")
+
     print(dim("\nharness wiring:  python scripts/setup.py wire <claude-code|codex|cursor|gemini-cli|generic>"))
     return 0
 
@@ -236,10 +244,25 @@ def _mcp_tools(tools) -> list[dict]:
     return [t for t in tools if t.get("mcp")]
 
 
-def _copy_skill(dest: Path) -> None:
-    dest.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(SKILL_DIR / "SKILL.md", dest / "SKILL.md")
-    print(green(f"  skill  → {dest / 'SKILL.md'}"))
+def bundled_skills() -> list[Path]:
+    """Every skills/<name>/ folder in the repo that has a SKILL.md."""
+    if not SKILLS_DIR.is_dir():
+        return []
+    return sorted(d for d in SKILLS_DIR.iterdir() if d.is_dir() and (d / "SKILL.md").is_file())
+
+
+def _install_skills(dest_root: Path) -> None:
+    skills = bundled_skills()
+    if not skills:
+        print(dim("  skills: none bundled in skills/"))
+        return
+    dest_root.mkdir(parents=True, exist_ok=True)
+    for src in skills:
+        dst = dest_root / src.name
+        if dst.exists():
+            shutil.rmtree(dst)
+        shutil.copytree(src, dst)
+        print(green(f"  skill  → {dst}"))
 
 
 CLAUDE_REF = (
@@ -282,7 +305,7 @@ def wire_claude_code(tools) -> int:
     if shutil.which("claude") is None:
         print(red("  `claude` CLI not found — is Claude Code installed?"))
         return 1
-    _copy_skill(Path.home() / ".claude" / "skills" / "ai-dev-env")
+    _install_skills(Path.home() / ".claude" / "skills")
     for t in _mcp_tools(tools):
         m = t["mcp"]
         # -e/--env is variadic, so it must come *after* the server name.
@@ -298,8 +321,8 @@ def wire_codex(tools) -> int:
     if shutil.which("codex") is None:
         print(red("  `codex` CLI not found."))
         return 1
-    codex_home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
-    _copy_skill(codex_home / "skills" / "ai-dev-env")
+    codex_home = _codex_home()
+    _install_skills(codex_home / "skills")
     for t in _mcp_tools(tools):
         m = t["mcp"]
         args = " ".join(m.get("args", []))
@@ -312,19 +335,24 @@ def wire_codex(tools) -> int:
     return 0
 
 
+def _print_bundled_skills() -> None:
+    skills = bundled_skills()
+    if skills:
+        print(dim("  bundled skills (wire manually — no native skills dir):"))
+        for s in skills:
+            print(dim(f"    {s / 'SKILL.md'}"))
+
+
 def wire_cursor(tools) -> int:
-    home = Path.home()
-    mcp_json = home / ".cursor" / "mcp.json"
-    _print_mcp_json(tools, mcp_json)
-    print(dim(f"  add project rule: .cursor/rules/ai-dev-env.mdc  (copy from {SKILL_DIR / 'SKILL.md'})"))
+    _print_mcp_json(tools, Path.home() / ".cursor" / "mcp.json")
+    _print_bundled_skills()
     print(dim("  graphify: run `graphify install --platform cursor`"))
     return 0
 
 
 def wire_gemini(tools) -> int:
-    settings = Path.home() / ".gemini" / "settings.json"
-    _print_mcp_json(tools, settings, key="mcpServers")
-    print(dim("  add context: ~/.gemini/GEMINI.md  (point it at the skill)"))
+    _print_mcp_json(tools, Path.home() / ".gemini" / "settings.json", key="mcpServers")
+    _print_bundled_skills()
     print(dim("  graphify: run `graphify install --platform gemini`"))
     return 0
 
@@ -343,7 +371,7 @@ def _print_mcp_json(tools, path: Path, key: str = "mcpServers") -> None:
 
 def wire_generic(tools) -> int:
     _print_mcp_json(tools, Path("<your-client-mcp-config>"))
-    print(f"  skill body to load as context/rules: {SKILL_DIR / 'SKILL.md'}")
+    _print_bundled_skills()
     return 0
 
 
@@ -376,6 +404,19 @@ def cmd_guidelines(args) -> int:
     return 0
 
 
+def cmd_skills(args) -> int:
+    print(bold("\ninstalling bundled skills\n"))
+    if args.harness in (None, "claude-code") and shutil.which("claude"):
+        print(dim("claude-code"))
+        _install_skills(Path.home() / ".claude" / "skills")
+    if args.harness in (None, "codex") and shutil.which("codex"):
+        print(dim("codex"))
+        _install_skills(_codex_home() / "skills")
+    if args.harness and args.harness not in ("claude-code", "codex"):
+        _print_bundled_skills()
+    return 0
+
+
 # ── doctor ─────────────────────────────────────────────────────────────────
 def cmd_doctor(_args) -> int:
     rc = 0
@@ -400,13 +441,17 @@ def main() -> int:
     g.add_argument("--each", dest="mode", action="store_const", const="each", help="confirm each tool")
     pi.set_defaults(fn=cmd_install, mode=None)
 
-    pw = sub.add_parser("wire", help="register skill + MCP + guidelines into a harness")
+    pw = sub.add_parser("wire", help="install bundled skills + MCP + guidelines into a harness")
     pw.add_argument("harness", choices=list(WIRERS))
     pw.set_defaults(fn=cmd_wire)
 
     pg = sub.add_parser("guidelines", help="install always-on agent guidelines (AGENTS.md + CLAUDE.md ref)")
     pg.add_argument("harness", nargs="?", choices=list(WIRERS), help="default: claude-code, codex, gemini-cli")
     pg.set_defaults(fn=cmd_guidelines, harness=None)
+
+    ps = sub.add_parser("skills", help="install bundled skills/ into a harness")
+    ps.add_argument("harness", nargs="?", choices=list(WIRERS), help="default: claude-code + codex")
+    ps.set_defaults(fn=cmd_skills, harness=None)
 
     sub.add_parser("doctor", help="verify each tool").set_defaults(fn=cmd_doctor)
 

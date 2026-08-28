@@ -2,7 +2,7 @@
 
 **Automated by** `setup.py wire claude-code`:
 
-- copies `skills/ai-dev-env/SKILL.md` → `~/.claude/skills/ai-dev-env/SKILL.md`
+- copies every `skills/<name>/` bundle → `~/.claude/skills/<name>/`
 - `claude mcp add --scope user <id> -e <ENV> -- <command> <args>` for each MCP tool
 - guidelines: full text → `~/.claude/AGENTS.md`; a one-line reference block
   (marker-delimited) is appended to `~/.claude/CLAUDE.md`
@@ -12,10 +12,9 @@
 ```bash
 claude mcp list                 # basic-memory should show "Connected"
 claude mcp get basic-memory
-ls ~/.claude/skills/ai-dev-env
+ls ~/.claude/skills                     # bundled skills + graphify
+cat ~/.claude/AGENTS.md                 # guidelines + env-repo pointer
 ```
-
-Invoke the skill in a session with `/ai-dev-env`.
 
 ## graphify
 
@@ -32,5 +31,6 @@ Then `/graphify .` in any repo.
 
 ```bash
 claude mcp remove basic-memory -s user
-rm -rf ~/.claude/skills/ai-dev-env
+# skills: rm -rf ~/.claude/skills/<name>
+# guidelines: delete the marked block in ~/.claude/AGENTS.md and ~/.claude/CLAUDE.md
 ```
