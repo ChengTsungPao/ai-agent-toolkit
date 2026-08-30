@@ -1,0 +1,5 @@
+interface:
+  display_name: "Notion"
+  short_description: "Operate the user's Notion workspace"
+policy:
+  allow_implicit_invocation: true

@@ -144,6 +144,8 @@ def cmd_report(_args) -> int:
         usage = t.get("usage", {}).get("short")
         if usage:
             print(f"  {dim('use:')} {usage}")
+        for k in missing_required_env(t):
+            print(f"  {yellow('needs env:')} {k} (not set) — see `setup.py doctor` / docs")
         doc = t.get("docs", "")
         if doc and not doc.startswith("http"):
             print(f"  {dim('docs:')} {REPO / doc}")
@@ -257,6 +259,24 @@ def _mcp_tools(tools) -> list[dict]:
     return [t for t in tools if t.get("mcp")]
 
 
+def mcp_spec(t: dict) -> tuple[str, list[str]]:
+    """(command, args) for this tool's MCP server, with a per-OS override applied."""
+    m = {**t["mcp"], **t["mcp"].get(OS, {})}
+    return m["command"], list(m.get("args", []))
+
+
+def missing_required_env(t: dict) -> list[str]:
+    return [k for k in t.get("mcp", {}).get("env_required", []) if not os.environ.get(k)]
+
+
+def _warn_missing_env(t: dict) -> None:
+    for k in missing_required_env(t):
+        how = f'setx {k} "..."' if IS_WINDOWS else f'export {k}=... (add to ~/.zprofile)'
+        print(yellow(f"  {t['id']}: env {k} not set — server won't connect until you run:  {how}"))
+        if t.get("setup"):
+            print(dim(f"      {t['setup']}"))
+
+
 def bundled_skills() -> list[Path]:
     """Every skills/<name>/ folder in the repo that has a SKILL.md."""
     if not SKILLS_DIR.is_dir():
@@ -336,12 +356,15 @@ def wire_claude_code(tools) -> int:
         return 1
     _install_skills(Path.home() / ".claude" / "skills")
     for t in _mcp_tools(tools):
-        m = t["mcp"]
+        command, arglist = mcp_spec(t)
+        args = " ".join(arglist)
         # -e/--env is variadic, so it must come *after* the server name.
+        # Only non-secret [tool.env] is injected; env_required secrets stay in the
+        # user's environment and are never written into harness config.
         env = " ".join(f"-e {k}={v}" for k, v in t.get("env", {}).items())
-        args = " ".join(m.get("args", []))
         subprocess.run(f'claude mcp remove {t["id"]} -s user', shell=True, capture_output=True)
-        run(" ".join(f'claude mcp add --scope user {t["id"]} {env} -- {m["command"]} {args}'.split()))
+        run(" ".join(f'claude mcp add --scope user {t["id"]} {env} -- {command} {args}'.split()))
+        _warn_missing_env(t)
     print(dim("  (graphify registers its own skill: run `graphify install --platform claude`)"))
     return 0
 
@@ -353,13 +376,14 @@ def wire_codex(tools) -> int:
     codex_home = _codex_home()
     _install_skills(codex_home / "skills")
     for t in _mcp_tools(tools):
-        m = t["mcp"]
-        args = " ".join(m.get("args", []))
+        command, arglist = mcp_spec(t)
+        args = " ".join(arglist)
         env = " ".join(f"--env {k}={v}" for k, v in t.get("env", {}).items())
-        cmd = shutil.which(m["command"]) or m["command"]
+        cmd = shutil.which(command) or command
         # `codex mcp add [--env K=V] <name> -- <cmd> <args>` — overwrites cleanly.
         if run(" ".join(f'codex mcp add {env} {t["id"]} -- {cmd} {args}'.split())) != 0:
             print(yellow(f"  `codex mcp add` failed for {t['id']} — add manually to {codex_home}/config.toml"))
+        _warn_missing_env(t)
     print(dim("  graphify: run `graphify install --platform codex`"))
     return 0
 
@@ -389,10 +413,15 @@ def wire_gemini(tools) -> int:
 def _print_mcp_json(tools, path: Path, key: str = "mcpServers") -> None:
     import json
 
-    block = {
-        t["id"]: {"command": t["mcp"]["command"], "args": t["mcp"].get("args", []), **({"env": t["env"]} if t.get("env") else {})}
-        for t in _mcp_tools(tools)
-    }
+    block = {}
+    for t in _mcp_tools(tools):
+        command, arglist = mcp_spec(t)
+        entry = {"command": command, "args": arglist}
+        if t.get("env"):
+            entry["env"] = t["env"]
+        for k in t.get("mcp", {}).get("env_required", []):
+            entry.setdefault("env", {})[k] = f"${{{k}}}"
+        block[t["id"]] = entry
     print(bold(f"\n  merge into {path} :\n"))
     print(json.dumps({key: block}, indent=2))
     print()
@@ -463,6 +492,10 @@ def cmd_doctor(_args) -> int:
         ok = is_installed(t)
         print(f"{green('PASS') if ok else red('FAIL')}  {t['name']:<24} {dim(t.get('verify',''))}")
         rc |= 0 if ok else 1
+        for k in missing_required_env(t):
+            print(f"{yellow('WARN')}  {t['name']:<24} env {k} not set")
+            if t.get("setup"):
+                print(f"      {dim(t['setup'])}")
     return rc
 
 

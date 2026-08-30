@@ -35,6 +35,7 @@ installs it if missing, then runs everything on a pinned Python.
 | **uv** | Python toolchain; installs every other CLI as an isolated `uv tool` |
 | **Basic Memory** | private, local, **human-editable** Markdown memory shared across all harnesses (MCP) |
 | **graphify** | codebase → queryable knowledge graph (tree-sitter AST + Leiden), `/graphify` |
+| **Notion MCP** | official `@notionhq/notion-mcp-server`, local via npx — read/create/update Notion pages & DBs (needs `NOTION_TOKEN`) |
 
 Full detail per tool: [`docs/tools/`](docs/tools/). Source of truth:
 [`manifest.toml`](manifest.toml).
@@ -59,6 +60,7 @@ skills dir (`~/.claude/skills/`, `$CODEX_HOME/skills/`). Currently:
 | skill | what |
 |---|---|
 | `grill-me` (+ `grilling`) | relentless interview to sharpen a plan before coding — `/grill-me` |
+| `notion` | route notes/tasks/links into the right Notion DB; needs the `notion-mcp` server + your workspace map filled in |
 
 **External plugins** — large, self-updating ecosystems recorded under
 `[[plugin]]` in `manifest.toml` and installed per-harness (not vendored):
