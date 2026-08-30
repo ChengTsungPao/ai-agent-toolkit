@@ -1,7 +1,7 @@
 # Notion MCP
 
 **Package:** [`@notionhq/notion-mcp-server`](https://github.com/makenotion/notion-mcp-server)
-(official, MIT). Run locally via `npx`. Free.
+(official, MIT). Installed globally via npm, run locally. Free.
 
 ## What it does
 
@@ -28,9 +28,11 @@ creates or edits is written to your Notion workspace.
 
 ## Wiring
 
-`setup.py wire claude-code` / `wire codex` registers it. On Windows the MCP
-command is `cmd /c npx -y @notionhq/notion-mcp-server` (npx needs the `cmd`
-wrapper when spawned by a harness); elsewhere plain `npx`.
+`setup.py install` runs `npm install -g @notionhq/notion-mcp-server`.
+`setup.py wire claude-code` / `wire codex` then registers the `notion-mcp-server`
+binary as an MCP server. On Windows the command is `cmd /c notion-mcp-server`
+(the harness can't reliably resolve the npm `.cmd`/`.ps1` shim on its own);
+elsewhere plain `notion-mcp-server`.
 
 If `NOTION_TOKEN` isn't set at wire time, the server is still registered but
 won't connect — `setup.py doctor` / `report` flag this. Set the token and
@@ -38,8 +40,9 @@ restart the harness.
 
 ## Requirements
 
-Node.js (for `npx`). Nothing is installed permanently; `npx` fetches the package
-on first run and caches it.
+Node.js + npm. (`npx -y @notionhq/notion-mcp-server` also works in principle but
+npm 11.16–11.17 has an `npx` regression on Windows — `Cannot read properties of
+undefined (reading 'standard')` — so a global install is used instead.)
 
 ## Usage
 

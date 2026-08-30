@@ -87,17 +87,21 @@ short = "In a harness: /graphify .  (build graph for current repo) · graphify q
 [[tool]]
 id       = "notion-mcp"
 name     = "Notion MCP"
-purpose  = "Official Notion MCP server (@notionhq/notion-mcp-server), run locally via npx: search / read / create / update Notion pages and databases, and comments. No middleman service — the local process talks straight to api.notion.com with a token you own; scope it to only the pages/DBs you share, and it can be read-only. Your Notion data still lives in Notion's cloud (Notion is a cloud product); 'local' only means the MCP process and token stay on your machine."
+purpose  = "Official Notion MCP server (@notionhq/notion-mcp-server), installed globally via npm and run locally: search / read / create / update Notion pages and databases, and comments. No middleman service — the local process talks straight to api.notion.com with a token you own; scope it to only the pages/DBs you share, and it can be read-only. Your Notion data still lives in Notion's cloud (Notion is a cloud product); 'local' only means the MCP process and token stay on your machine."
 kind     = "mcp"
-verify   = "node --version"   # nothing to install; runs via npx, needs Node.js
+verify   = "notion-mcp-server --help"
 docs     = "docs/tools/notion.md"
 setup    = "1) notion.so/profile/integrations -> New integration (internal); copy the ntn_... secret. 2) Set it: setx NOTION_TOKEN \"ntn_...\" (Windows) or export in ~/.zprofile (macOS). 3) On each Notion page/DB you want it to touch: ••• -> Connect to integration. Restrict the integration to 'Read content' only if you want read-only."
+[tool.install]
+default = "npm install -g @notionhq/notion-mcp-server"   # needs Node.js / npm
 [tool.mcp]
-command      = "npx"
-args         = ["-y", "@notionhq/notion-mcp-server"]
+command      = "notion-mcp-server"
+args         = []
 env_required = ["NOTION_TOKEN"]   # a secret — never injected into harness config; must be a persistent env var
 [tool.mcp.windows]
+# npx/global bin resolution is unreliable when a harness spawns it on Windows;
+# go through cmd so the .cmd shim is found.
 command      = "cmd"
-args         = ["/c", "npx", "-y", "@notionhq/notion-mcp-server"]
+args         = ["/c", "notion-mcp-server"]
 [tool.usage]
 short = "Ask the agent to search / read / add / update Notion content; or use the `notion` skill for your workspace conventions. Tools: notion-search, notion-fetch, notion-create-pages, notion-update-page, notion-create-comment, … (DB deletion is blocked by design)."
