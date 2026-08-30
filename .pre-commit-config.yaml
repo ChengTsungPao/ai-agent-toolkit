@@ -1,0 +1,29 @@
+# Install once:  uv tool install pre-commit   (or pipx/pip)
+# then:          pre-commit install
+# Bump hooks:    pre-commit autoupdate
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-toml
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.6
+    hooks:
+      - id: ruff          # lint (with --fix)
+        args: [--fix]
+      - id: ruff-format   # format
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest (manifest + setup.py)
+        entry: uv run --python 3.12 --with pytest pytest
+        language: system
+        pass_filenames: false
+        files: '^(manifest\.toml|scripts/setup\.py|guidelines/AGENTS\.md|tests/.*\.py)$'

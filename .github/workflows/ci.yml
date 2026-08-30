@@ -1,0 +1,42 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  If a check here shows a BILLING / QUOTA / "spending limit" message instead of
+#  test output, that is the free-tier monthly GitHub Actions limit being hit —
+#  it is NOT a code failure. The authoritative check is, locally:
+#
+#      uv run --python 3.12 --with pytest pytest
+#      uv run --python 3.12 --with ruff ruff check scripts tests
+#
+#  (private repo, Free plan: 2,000 Linux-min/month; Windows drains 2×.)
+# ─────────────────────────────────────────────────────────────────────────────
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv run --python 3.12 --with ruff ruff check scripts tests
+      - run: uv run --python 3.12 --with ruff ruff format --check scripts tests
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: pytest
+        run: uv run --python 3.12 --with pytest pytest
+      - name: setup.py report (smoke)
+        run: uv run --python 3.12 scripts/setup.py report

@@ -82,6 +82,25 @@ content it distributes or notes.
 `setup.py` itself changes only for a whole new *kind* of thing or a new
 subcommand — and stays stdlib-only, Python 3.11+.
 
+## Tests, lint, CI
+
+```
+uv run --python 3.12 --with pytest pytest                 # tests/  (manifest + setup.py)
+uv run --python 3.12 --with ruff ruff check scripts tests
+uv run --python 3.12 --with ruff ruff format scripts tests
+```
+
+`tests/` needs no repo dependency — pytest and ruff are fetched on demand.
+`.pre-commit-config.yaml` runs ruff + pytest on commit (`pre-commit install` once).
+`.github/workflows/ci.yml` runs lint (Linux) + tests (Linux **and** Windows) on
+push/PR.
+
+**Free-tier CI note:** this is a private repo on the Free plan (2,000
+Linux-minutes/month; Windows drains 2×). If a CI check shows a *billing / quota /
+spending-limit* message instead of test results, that's the monthly limit — **not
+a code failure**. The local commands above are the source of truth; re-run them
+and say so on the PR.
+
 ## Invariants — don't break these
 
 1. **No hard-coded clone path.** The repo must work cloned anywhere;

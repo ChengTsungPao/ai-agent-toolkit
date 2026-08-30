@@ -1,0 +1,21 @@
+# Config only — ai-dev-env is not a package. `setup.py` stays stdlib-only;
+# pytest and ruff are dev tools fetched on demand via `uv run --with`.
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+extend-exclude = ["scratchpad"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = [
+    "E731",   # lambda assignments — deliberate, for the tiny colour helpers
+    "SIM105", # contextlib.suppress over try/except/pass — not worth the import here
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402"]  # imports after path setup
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
