@@ -49,18 +49,29 @@ def test_kind_enum_matches_manifest_test():
         assert t["kind"] in KINDS
 
 
-def test_report_runs_with_no_tools_installed(tmp_path):
-    env = {**os.environ, "NO_COLOR": "1", "AI_DEV_ENV_HOME": str(tmp_path)}
-    r = subprocess.run(
+def _run_report(tmp_path, extra_env=None):
+    env = {**os.environ, "NO_COLOR": "1", "AI_DEV_ENV_HOME": str(tmp_path), **(extra_env or {})}
+    return subprocess.run(
         [sys.executable, str(SETUP), "report"],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         env=env,
         timeout=120,
     )
+
+
+def test_report_runs_with_no_tools_installed(tmp_path):
+    r = _run_report(tmp_path)
     assert r.returncode == 0, r.stderr
     assert "MCP servers" in r.stdout
     assert "CLI tools" in r.stdout
+
+
+def test_report_survives_a_non_utf8_stdout(tmp_path):
+    # box-drawing / bullet glyphs must not crash on a cp1252 pipe (Windows CI, redirects)
+    r = _run_report(tmp_path, {"PYTHONIOENCODING": "cp1252"})
+    assert r.returncode == 0, r.stderr
 
 
 def test_config_template_generates(tmp_path):

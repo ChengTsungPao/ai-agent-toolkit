@@ -51,6 +51,13 @@ IS_WINDOWS = OS == "windows"
 
 if IS_WINDOWS:
     os.system("")  # enable ANSI escape processing in the Windows console
+# The output uses box-drawing / bullet glyphs; force UTF-8 so it survives a
+# non-UTF-8 Windows console or a redirected pipe (cp1252 would raise).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
 
 
 # ── ansi ────────────────────────────────────────────────────────────────────
