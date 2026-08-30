@@ -105,23 +105,33 @@ right Python), or directly with `uv run --python 3.12 scripts/setup.py ...`.
 guidelines). Cursor / Gemini CLI / other MCP clients get a printed JSON block to
 paste — see [`harnesses/`](harnesses/).
 
-## Adding a tool
+## Adding something
 
-Append a `[[tool]]` block to `manifest.toml` (schema at the top of that file),
-commit, push. `report` / `install` / `doctor` pick it up with no code change;
-add `[tool.mcp]` if it's an MCP server so `wire` registers it too.
+`manifest.toml` has four sections — pick by what the thing is (decision table at
+the top of that file):
+
+| you have | add | installed by |
+|---|---|---|
+| a CLI to install | `[[tool]]` | `install` |
+| an MCP server | `[[tool]]` + `[tool.mcp]` | `install` + `wire` |
+| a third-party skill (want latest at install) | `[[skill]]` (git repo + sub-paths) | `skills` / `wire` |
+| your own skill | a folder under `skills/` | `skills` / `wire` |
+| a plugin ecosystem | `[[plugin]]` (per-harness install cmds) | `plugins` / `wire` |
+| an always-on rule | edit `guidelines/AGENTS.md` | `guidelines` / `wire` |
+
+Commit, push. No `setup.py` change needed for any of these.
 
 ## Layout
 
 ```
-manifest.toml            source of truth (tools + guidelines + plugins)
+manifest.toml            source of truth — [guidelines] / [[tool]] / [[skill]] / [[plugin]]
 scripts/
   setup.py               orchestrator (stdlib only, py3.11+)
   install.sh / .ps1      bootstrap (ensure uv, run setup.py)
 guidelines/
   AGENTS.md              canonical always-on agent rules + env-repo pointer
   CLAUDE.md              project-level reference stub
-skills/                  your own skill bundles (committed); external ones live in manifest.toml
+skills/                  your own skill folders (committed); third-party ones are [[skill]] in manifest.toml
 harnesses/               per-harness wiring notes
 docs/tools/              per-tool / per-skill / per-plugin docs
 ```

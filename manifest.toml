@@ -1,25 +1,135 @@
-# ai-dev-env — tool manifest (source of truth)
+# ai-dev-env — manifest (source of truth)
 #
-# Every tool this repo manages is one [[tool]] block. `setup.py` reads this file
-# to report status, install what is missing, and wire tools into AI harnesses.
-# Hand-edit freely; keep it valid TOML.
+# Four kinds of thing, one section each (in this order). `setup.py` reads this
+# file; hand-edit freely, keep it valid TOML.
+#
+#   [guidelines]   always-on behavioural rules, marker-injected into each
+#                  harness's AGENTS.md / CLAUDE.md. One table.
+#                  installed by:  setup.py guidelines | wire
+#
+#   [[tool]]       something installed onto the system by a package manager.
+#                  Has `verify` + `[tool.install]`. A `[tool.mcp]` sub-block
+#                  means it is ALSO wired as an MCP server.
+#                  installed by:  setup.py install   wired by:  setup.py wire
+#                  updates:       manual (uv tool upgrade / npm update -g)
+#                  kind = prerequisite | cli | mcp | cli+mcp | cli+skill
+#
+#   [[skill]]      a third-party skill pulled from git. NOT stored in this repo.
+#                  Shallow-cloned fresh and copied into the harness skills dir
+#                  every run — so it is latest AT INSTALL, not auto-updated after.
+#                  installed by:  setup.py skills | wire
+#                  (your own skills go as committed folders under skills/ instead)
+#
+#   [[plugin]]     a large skill/plugin ecosystem installed through the harness's
+#                  own plugin mechanism, which also auto-updates it.
+#                  installed by:  setup.py plugins | wire  (some are interactive)
 
-# ---------------------------------------------------------------------------
-schema_version = 1
+schema_version = 2
 
-# Always-on behavioral guidelines installed into each harness's instruction
-# file. AGENTS.md is canonical (cross-harness standard); CLAUDE.md just points
-# at it, so there is one source of truth. `setup.py guidelines` and
-# `setup.py wire <harness>` install these.
+
+# ═══════════════════════════════ GUIDELINES ═══════════════════════════════
+# AGENTS.md is canonical (cross-harness standard); CLAUDE.md / GEMINI.md get a
+# one-line reference to it. guidelines/CLAUDE.md is a project-root template,
+# not read by setup.py.
 [guidelines]
 canonical = "guidelines/AGENTS.md"   # full text -> ~/.claude/AGENTS.md, $CODEX_HOME/AGENTS.md, ~/.gemini/GEMINI.md
-# ~/.claude/CLAUDE.md gets only a generated one-line reference to AGENTS.md.
-# guidelines/CLAUDE.md is a copy-me template for project roots, not read by setup.py.
 
-# External plugin ecosystems — installed per-harness (not vendored) because they
-# are large and self-updating. `setup.py wire <harness>` runs the matching
-# install command; harnesses with no scriptable installer get the command
-# printed. `setup.py plugins` re-runs them.
+
+# ═════════════════════════════════ TOOLS ═════════════════════════════════
+
+# ---- uv --------------------------------------------------------- prerequisite
+# The one hard dependency. Bootstrap scripts install it; listed so report/doctor
+# can see it. Every other CLI here is a `uv tool` (isolated venv).
+[[tool]]
+id      = "uv"
+name    = "uv"
+kind    = "prerequisite"
+purpose = "Python toolchain + isolated tool installer. Every other CLI tool here is installed as a `uv tool`, so each gets its own venv and never collides with system Python."
+verify  = "uv --version"
+docs    = "https://docs.astral.sh/uv/"
+[tool.install]
+macos   = "curl -LsSf https://astral.sh/uv/install.sh | sh"
+linux   = "curl -LsSf https://astral.sh/uv/install.sh | sh"
+windows = "powershell -ExecutionPolicy Bypass -c \"irm https://astral.sh/uv/install.ps1 | iex\""
+[tool.usage]
+short = "uv tool install <pkg> · uv tool upgrade --all · uv run --python 3.12 script.py"
+
+# ---- Basic Memory ------------------------------------------------- cli + mcp
+[[tool]]
+id      = "basic-memory"
+name    = "Basic Memory"
+kind    = "cli+mcp"
+purpose = "Private, local, human-editable knowledge memory shared across every AI harness. Notes are plain Markdown on disk (~/basic-memory), indexed in a local SQLite db with local embeddings. No cloud, no account. Review/curate changes in any editor, Obsidian, or via git."
+verify  = "basic-memory --version"
+docs    = "docs/tools/basic-memory.md"
+[tool.install]
+default = "uv tool install basic-memory"
+[tool.post_install]
+default = "basic-memory config set cloud_promo_opt_out true"   # cheap + idempotent
+[tool.env]
+BASIC_MEMORY_NO_PROMOS = "1"   # non-secret; safe to write into harness config
+[tool.mcp]
+command = "basic-memory"
+args    = ["mcp"]
+[tool.usage]
+short = "Ask the agent to \"remember\" / \"recall\" things; it calls the write_note / search_notes / build_context MCP tools. Files in ~/basic-memory/{code,knowledge,conversations,research}. CLI: status · reindex · doctor · tool search-notes."
+
+# ---- Notion MCP -------------------------------------------------------- mcp
+# The npm package only provides an MCP server (no standalone CLI use).
+[[tool]]
+id      = "notion-mcp"
+name    = "Notion MCP"
+kind    = "mcp"
+purpose = "Official Notion MCP server (@notionhq/notion-mcp-server), installed globally via npm and run locally: search / read / create / update Notion pages and databases, and comments. No middleman service — the local process talks straight to api.notion.com with a token you own; scope it to only the pages/DBs you share, and it can be read-only. Your Notion data still lives in Notion's cloud (Notion is a cloud product); 'local' only means the MCP process and token stay on your machine."
+verify  = "notion-mcp-server --help"
+docs    = "docs/tools/notion.md"
+setup   = "1) notion.so/profile/integrations -> New integration (internal); copy the ntn_ secret (Read-content-only if you want read-only). 2) Paste it into ~/.ai-dev-env/config.toml under [env] NOTION_TOKEN, then re-run `setup.py wire <harness>`. 3) On each Notion page/DB you want reachable: top-right menu -> Connect to integration."
+[tool.install]
+default = "npm install -g @notionhq/notion-mcp-server"   # needs Node.js / npm
+[tool.mcp]
+command = "notion-mcp-server"
+args    = []
+[tool.mcp.env_required]
+# KEY = human description -> becomes a comment in ~/.ai-dev-env/config.toml.
+# Secrets: never written into harness config, only passed to the server.
+NOTION_TOKEN = "Notion internal integration secret (starts ntn_). Create at https://www.notion.so/profile/integrations ; then on each page/DB you want reachable: top-right menu -> Connect to integration."
+[tool.mcp.windows]
+# npm's global bin is a .cmd/.ps1 shim a harness can't resolve when spawning;
+# go through cmd.
+command = "cmd"
+args    = ["/c", "notion-mcp-server"]
+[tool.usage]
+short = "Ask the agent to search / read / add / update Notion content; name the page/DB or let it search. Tools: API-post-search, API-retrieve-page-markdown, API-post-page, API-patch-page, API-create-a-comment, … (DB deletion is blocked by design)."
+
+# ---- graphify -------------------------------------------------- cli + skill
+# A CLI that registers its OWN per-harness skill via `graphify install`.
+[[tool]]
+id      = "graphify"
+name    = "graphify"
+kind    = "cli+skill"
+purpose = "Turns a codebase (or folder of docs/PDFs) into a queryable knowledge graph via local tree-sitter AST parsing + Leiden community detection. Produces graph.html, GRAPH_REPORT.md, graph.json. Complements Basic Memory: graphify is derived/disposable structure over code, Basic Memory is curated long-term facts."
+verify  = "graphify --version"
+pypi    = "graphifyy"
+docs    = "docs/tools/graphify.md"
+[tool.install]
+default = "uv tool install graphifyy"
+[tool.usage]
+short = "In a harness: /graphify .  (build graph for current repo) · graphify query \"how does X work\" · graphify extract <path>. Registers its own skill per-harness via `graphify install --platform <name>`."
+
+
+# ═════════════════════════════════ SKILLS ════════════════════════════════
+# Cloned fresh from `repo` each run; `paths` are the sub-dirs to copy into the
+# harness skills dir. Latest at install; not auto-updated after.
+[[skill]]
+id    = "grill-me"
+repo  = "https://github.com/mattpocock/skills"
+paths = ["skills/productivity/grill-me", "skills/productivity/grilling"]
+docs  = "docs/tools/grill-me.md"
+
+
+# ════════════════════════════════ PLUGINS ════════════════════════════════
+# Installed through each harness's own plugin system (which also updates them).
+# `#`-prefixed install commands are interactive — printed, not run.
 [[plugin]]
 id      = "superpowers"
 purpose = "Jesse Vincent's (obra) agentic software-development methodology: 20+ composable, auto-activating skills (TDD, systematic debugging, brainstorming, git worktrees, code review) plus a bootstrap that makes the agent actually check for a relevant skill before each task."
@@ -31,89 +141,3 @@ codex       = "# interactive: run `/plugins`, search 'superpowers', Install"
 cursor      = "# interactive: run `/add-plugin superpowers`"
 [plugin.verify]
 claude-code = "claude plugin list"
-
-# External skills — NOT vendored. `setup.py skills` / `wire` shallow-clones the
-# repo fresh each run and copies the listed sub-paths into the harness skills
-# dir, so you always install the latest version. Your own skills go as folders
-# under skills/ instead (those are committed and frozen).
-[[skill]]
-id    = "grill-me"
-repo  = "https://github.com/mattpocock/skills"
-paths = ["skills/productivity/grill-me", "skills/productivity/grilling"]
-docs  = "docs/tools/grill-me.md"
-
-# uv is the only hard prerequisite. The bootstrap scripts install it if missing;
-# it is listed here so `report` / `doctor` can see it, but it is self-managing.
-[[tool]]
-id       = "uv"
-name     = "uv"
-purpose  = "Python toolchain + isolated tool installer. Every other CLI tool here is installed as a `uv tool`, so each gets its own venv and never collides with system Python."
-kind     = "prerequisite"
-verify   = "uv --version"
-docs     = "https://docs.astral.sh/uv/"
-[tool.install]
-macos   = "curl -LsSf https://astral.sh/uv/install.sh | sh"
-linux   = "curl -LsSf https://astral.sh/uv/install.sh | sh"
-windows = "powershell -ExecutionPolicy Bypass -c \"irm https://astral.sh/uv/install.ps1 | iex\""
-[tool.usage]
-short = "uv tool install <pkg> · uv tool upgrade --all · uv run --python 3.12 script.py"
-
-# ---------------------------------------------------------------------------
-[[tool]]
-id       = "basic-memory"
-name     = "Basic Memory"
-purpose  = "Private, local, human-editable knowledge memory shared across every AI harness. Notes are plain Markdown on disk (~/basic-memory), indexed in a local SQLite db with local embeddings. No cloud, no account. Review/curate changes in any editor, Obsidian, or via git."
-kind     = "mcp"
-verify   = "basic-memory --version"
-docs     = "docs/tools/basic-memory.md"
-[tool.install]
-default = "uv tool install basic-memory"
-[tool.env]
-BASIC_MEMORY_NO_PROMOS = "1"
-[tool.post_install]
-# run after install, before wiring. Cheap + idempotent.
-default = "basic-memory config set cloud_promo_opt_out true"
-[tool.mcp]
-command = "basic-memory"
-args    = ["mcp"]
-[tool.usage]
-short = "Ask the agent to \"remember\" / \"recall\" things; it calls the write_note / search_notes / build_context MCP tools. Files live in ~/basic-memory/{code,knowledge,conversations,research}. `basic-memory` CLI: status · reindex · doctor · tool search-notes."
-
-# ---------------------------------------------------------------------------
-[[tool]]
-id       = "graphify"
-name     = "graphify"
-purpose  = "Turns a codebase (or folder of docs/PDFs) into a queryable knowledge graph via local tree-sitter AST parsing + Leiden community detection. Produces graph.html, GRAPH_REPORT.md, graph.json. Complements Basic Memory: graphify is derived/disposable structure over code, Basic Memory is curated long-term facts."
-kind     = "cli+skill"
-verify   = "graphify --version"
-pypi     = "graphifyy"
-docs     = "docs/tools/graphify.md"
-[tool.install]
-default = "uv tool install graphifyy"
-[tool.usage]
-short = "In a harness: /graphify .  (build graph for current repo) · graphify query \"how does X work\" · graphify extract <path>. Registers its own skill per-harness via `graphify install`."
-
-# ---------------------------------------------------------------------------
-[[tool]]
-id       = "notion-mcp"
-name     = "Notion MCP"
-purpose  = "Official Notion MCP server (@notionhq/notion-mcp-server), installed globally via npm and run locally: search / read / create / update Notion pages and databases, and comments. No middleman service — the local process talks straight to api.notion.com with a token you own; scope it to only the pages/DBs you share, and it can be read-only. Your Notion data still lives in Notion's cloud (Notion is a cloud product); 'local' only means the MCP process and token stay on your machine."
-kind     = "mcp"
-verify   = "notion-mcp-server --help"
-docs     = "docs/tools/notion.md"
-setup    = "1) notion.so/profile/integrations -> New integration (internal); copy the ntn_ secret (set it to Read-content-only if you want read-only). 2) Paste it into ~/.ai-dev-env/config.toml under [env] NOTION_TOKEN, then re-run `setup.py wire <harness>`. 3) On each Notion page/DB you want reachable: top-right menu -> Connect to integration."
-[tool.install]
-default = "npm install -g @notionhq/notion-mcp-server"   # needs Node.js / npm
-[tool.mcp]
-command      = "notion-mcp-server"
-args         = []
-[tool.mcp.env_required]
-# key = human description, shown as a comment in ~/.ai-dev-env/config.toml
-NOTION_TOKEN = "Notion internal integration secret (starts ntn_). Create at https://www.notion.so/profile/integrations ; then on each page/DB you want reachable: top-right menu -> Connect to integration."
-[tool.mcp.windows]
-# npx/global bin resolution is unreliable when a harness spawns it on Windows;
-# go through cmd so the .cmd shim is found.
-command      = "cmd"
-args         = ["/c", "notion-mcp-server"]
-[tool.usage]
-short = "Ask the agent to search / read / add / update Notion content; name the page/DB or let it search. Tools: API-post-search, API-retrieve-page-markdown, API-post-page, API-patch-page, API-create-a-comment, … (DB deletion is blocked by design)."

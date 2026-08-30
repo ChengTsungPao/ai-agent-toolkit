@@ -4,17 +4,25 @@
 Cross-platform (Windows / macOS / Linux). Requires Python 3.11+ — the bootstrap
 scripts always invoke it as `uv run --python 3.12`, so `tomllib` is available.
 
+manifest.toml has four sections; each subcommand acts on a subset:
+
+  [guidelines]  1 table   ── guidelines,  wire
+  [[tool]]      installs   ── install, doctor;  wire (if it has [tool.mcp])
+  [[skill]]     git-cloned ── skills,  wire
+  [[plugin]]    harness    ── plugins,  wire
+
 Subcommands
 -----------
-report            (default) show every managed tool: installed?, purpose, usage
-install [tools]   install missing tools; asks "confirm each" vs "install all"
+report            (default) grouped status: MCP servers / CLI tools / Skills /
+                  Plugins / Guidelines
+install [tools]   install missing [[tool]] entries; "confirm each" vs "install all"
 config            create/show ~/.ai-dev-env/config.toml (fill in tokens here)
-wire <harness>    install bundled skills + MCP + guidelines + plugins into a harness
+wire <harness>    everything for one harness: MCP servers + skills + guidelines + plugins
 guidelines        (re)install the always-on agent guidelines
 skills            (re)install skills — local skills/ folders + [[skill]] entries
-                  (the latter re-cloned fresh, so this pulls their latest)
-plugins           (re)install external plugin ecosystems (e.g. superpowers)
-doctor            run each tool's verify command and report pass/fail
+                  ([[skill]] entries are re-cloned fresh, so this pulls their latest)
+plugins           (re)install [[plugin]] ecosystems (e.g. superpowers)
+doctor            run each [[tool]] verify command + flag missing config
 
 Secrets (Notion token, …) go in ~/.ai-dev-env/config.toml — a file you own,
 outside the repo clone. `wire` reads it and passes the values to each MCP server.
@@ -217,7 +225,10 @@ def version_of(tool: dict) -> str:
         return ""
     try:
         r = subprocess.run(verify, shell=True, capture_output=True, text=True, timeout=30)
-        return (r.stdout or r.stderr).strip().splitlines()[0][:60] if r.returncode == 0 else ""
+        if r.returncode != 0:
+            return ""
+        line = (r.stdout or r.stderr).strip().splitlines()[0][:60]
+        return "" if line.lower().startswith(("usage", "options")) else line
     except (subprocess.TimeoutExpired, OSError, IndexError):
         return ""
 
@@ -228,54 +239,72 @@ def run(cmd: str, display: str | None = None, **kw) -> int:
 
 
 # ── report ─────────────────────────────────────────────────────────────────
+def _section(title: str) -> None:
+    print(f"\n{bold(title)}\n{dim('─' * len(title))}")
+
+
+def _report_tool(t: dict) -> None:
+    ok = is_installed(t)
+    mark = green("● installed") if ok else red("○ missing")
+    ver = version_of(t) if ok else ""
+    print(f"{bold(t['name']):<24} {mark}  {dim(ver)}")
+    print(f"  {t['purpose']}")
+    if t.get("usage", {}).get("short"):
+        print(f"  {dim('use:')} {t['usage']['short']}")
+    for k in missing_env(t):
+        print(f"  {yellow('needs config:')} {k} — fill in {CONFIG}")
+    doc = t.get("docs", "")
+    if doc and not doc.startswith("http"):
+        print(f"  {dim('docs:')} {REPO / doc}")
+    print()
+
+
 def cmd_report(_args) -> int:
     tools = load_tools()
-    print(bold(f"\nai-dev-env  ·  {platform.system()}  ·  repo: {REPO}\n"))
-    for t in tools:
-        ok = is_installed(t)
-        mark = green("● installed") if ok else red("○ missing")
-        ver = version_of(t) if ok else ""
-        print(f"{bold(t['name']):<28} {mark}  {dim(ver)}")
-        print(f"  {t['purpose']}")
-        usage = t.get("usage", {}).get("short")
-        if usage:
-            print(f"  {dim('use:')} {usage}")
-        for k in missing_env(t):
-            print(f"  {yellow('needs config:')} {k} — fill in {CONFIG}")
-        doc = t.get("docs", "")
-        if doc and not doc.startswith("http"):
-            print(f"  {dim('docs:')} {REPO / doc}")
-        print()
-    missing = [t["id"] for t in tools if not is_installed(t)]
-    if missing:
-        print(yellow(f"missing: {', '.join(missing)}   →   python scripts/setup.py install"))
-    else:
-        print(green("all managed tools installed"))
+    print(bold(f"\nai-dev-env  ·  {platform.system()}  ·  repo: {REPO}"))
 
-    # guidelines status
-    claude_agents = Path.home() / ".claude" / "AGENTS.md"
-    have = claude_agents.exists() and GUIDE_BEGIN in claude_agents.read_text(encoding="utf-8")
-    print(f"\n{bold('Agent guidelines'):<28} {green('● installed') if have else red('○ not installed')}")
-    print("  Always-on behavioral rules (AGENTS.md canonical, CLAUDE.md references it).")
-    print(f"  {dim('install:')} python scripts/setup.py guidelines")
+    mcp = [t for t in tools if t.get("mcp")]
+    cli = [t for t in tools if not t.get("mcp")]
 
-    # skills
-    local = [s.name for s in bundled_skills()]
-    ext = [s["id"] for s in ext_skills()]
-    names = ", ".join(local + [f"{e} (latest at install)" for e in ext]) or dim("(none)")
-    print(f"\n{bold('Skills'):<28} {names}")
-    if local or ext:
-        print(f"  {dim('install:')} python scripts/setup.py skills")
+    if mcp:
+        _section("MCP servers")
+        for t in mcp:
+            _report_tool(t)
+    if cli:
+        _section("CLI tools")
+        for t in cli:
+            _report_tool(t)
 
-    # external plugins
+    _section("Skills")
+    for s in bundled_skills():
+        print(f"{bold(s.name):<24} {dim('local (committed)')}")
+    for s in ext_skills():
+        origin = "/".join(s["repo"].rstrip("/").split("/")[-2:])
+        print(f"{bold(s['id']):<24} {dim(f'external — latest from {origin} at install')}")
+    if not bundled_skills() and not ext_skills():
+        print(dim("(none)"))
+    print(f"  {dim('install:')} setup.py skills")
+
     plugins = load_plugins()
     if plugins:
-        print(f"\n{bold('External plugins')}")
+        _section("Plugins")
         for p in plugins:
-            print(f"  {bold(p['id']):<26} {p['purpose'][:90]}…")
-        print(f"  {dim('install:')} python scripts/setup.py plugins  (per-harness; some are interactive)")
+            print(f"{bold(p['id']):<24} {p['purpose'][:88]}…")
+        print(f"  {dim('install:')} setup.py plugins  (per-harness; some interactive)")
 
-    print(dim("\nharness wiring:  python scripts/setup.py wire <claude-code|codex|cursor|gemini-cli|generic>"))
+    _section("Guidelines")
+    claude_agents = Path.home() / ".claude" / "AGENTS.md"
+    have = claude_agents.exists() and GUIDE_BEGIN in claude_agents.read_text(encoding="utf-8")
+    print(f"{'':<24} {green('● installed') if have else red('○ not installed')}  {dim('AGENTS.md canonical, CLAUDE.md references it')}")
+    print(f"  {dim('install:')} setup.py guidelines")
+
+    missing = [t["id"] for t in tools if not is_installed(t)]
+    print()
+    if missing:
+        print(yellow(f"missing: {', '.join(missing)}   →   setup.py install"))
+    else:
+        print(green("all tools installed"))
+    print(dim("wire a harness:  setup.py wire <claude-code|codex|cursor|gemini-cli|generic>"))
     return 0
 
 
