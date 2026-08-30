@@ -49,10 +49,10 @@ def test_kind_enum_matches_manifest_test():
         assert t["kind"] in KINDS
 
 
-def _run_report(tmp_path, extra_env=None):
+def _run(tmp_path, *cmd, extra_env=None):
     env = {**os.environ, "NO_COLOR": "1", "AI_DEV_ENV_HOME": str(tmp_path), **(extra_env or {})}
     return subprocess.run(
-        [sys.executable, str(SETUP), "report"],
+        [sys.executable, str(SETUP), *cmd],
         capture_output=True,
         encoding="utf-8",
         errors="replace",
@@ -62,7 +62,7 @@ def _run_report(tmp_path, extra_env=None):
 
 
 def test_report_runs_with_no_tools_installed(tmp_path):
-    r = _run_report(tmp_path)
+    r = _run(tmp_path, "report")
     assert r.returncode == 0, r.stderr
     assert "MCP servers" in r.stdout
     assert "CLI tools" in r.stdout
@@ -70,20 +70,31 @@ def test_report_runs_with_no_tools_installed(tmp_path):
 
 def test_report_survives_a_non_utf8_stdout(tmp_path):
     # box-drawing / bullet glyphs must not crash on a cp1252 pipe (Windows CI, redirects)
-    r = _run_report(tmp_path, {"PYTHONIOENCODING": "cp1252"})
+    r = _run(tmp_path, "report", extra_env={"PYTHONIOENCODING": "cp1252"})
     assert r.returncode == 0, r.stderr
 
 
 def test_config_template_generates(tmp_path):
-    env = {**os.environ, "NO_COLOR": "1", "AI_DEV_ENV_HOME": str(tmp_path)}
-    r = subprocess.run(
-        [sys.executable, str(SETUP), "config"],
-        capture_output=True,
-        text=True,
-        env=env,
-        timeout=60,
-    )
+    r = _run(tmp_path, "config")
     assert r.returncode == 0, r.stderr
     cfg = tmp_path / "config.toml"
     assert cfg.is_file()
-    assert "[env]" in cfg.read_text(encoding="utf-8")
+    body = cfg.read_text(encoding="utf-8")
+    assert "[env]" in body
+    assert "[skip]" in body
+
+
+def test_skip_list_is_honoured(tmp_path, monkeypatch):
+    (tmp_path / "config.toml").write_text('[env]\n\n[skip]\nids = ["chrome-devtools"]\n', encoding="utf-8")
+
+    # subprocess: report marks it, install leaves it out
+    rep = _run(tmp_path, "report")
+    assert "skipped (config [skip]): chrome-devtools" in rep.stdout
+    ins = _run(tmp_path, "install", "--all")
+    assert "chrome-devtools" not in ins.stdout.replace("skipped (config [skip]): chrome-devtools", "")
+
+    # in-process: the filters exclude it
+    monkeypatch.setenv("AI_DEV_ENV_HOME", str(tmp_path))
+    m = load()
+    assert "chrome-devtools" in m.skipped_ids()
+    assert all(t["id"] != "chrome-devtools" for t in m._mcp_tools(m.load_tools()))
