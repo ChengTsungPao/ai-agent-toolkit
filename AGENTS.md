@@ -52,18 +52,18 @@ from the generated "Environment repo" section in the installed `AGENTS.md`, and
 Data flow: **`manifest.toml` declares → `scripts/setup.py` acts →** the rest is
 content it distributes or notes.
 
-| path | role | you edit it to… |
+| path | what it's for | you edit it to… |
 |---|---|---|
-| `manifest.toml` | the declaration (4 sections + decision table) | add/change/remove any tool, skill, plugin, or the guidelines pointer |
-| `scripts/setup.py` | the engine (report/install/config/wire/skills/plugins/guidelines/doctor). stdlib-only, py3.11+, run via `uv run --python 3.12` | only when adding a *new kind* of thing or a new subcommand — never for a new entry |
-| `scripts/install.sh`, `install.ps1` | fresh-machine bootstrap: ensure `uv`, then call setup.py | rarely — they're ~20 lines each |
-| `guidelines/AGENTS.md` | the behavioural rules **distributed to** every machine (injected into each harness's AGENTS.md). NOT this file. | change the always-on rules |
-| `guidelines/CLAUDE.md` | copy-me `CLAUDE.md` stub for *other* repos' roots | almost never |
-| `skills/<name>/` | the user's **own** skill bundles, committed, copied verbatim to each harness (`skills/README.md` = format) | add one of the user's own skills |
-| `harnesses/<name>.md` | per-harness reference: what `wire <name>` does + manual steps | when a harness's wiring changes |
-| `docs/<id>.md` | optional per-entry page — rationale + fiddly setup, not tutorials | when an entry has a real decision or a painful setup worth recording |
+| `manifest.toml` | the declaration — 4 sections + decision table | add/change/remove any tool, skill, plugin, or the guidelines pointer |
+| `scripts/` | the engine (`setup.py`, stdlib-only, py3.11+, run via `uv`) + the fresh-machine bootstrap (`install.sh` / `.ps1`) | add a new *kind* of thing or a subcommand — never for a new entry |
+| `guidelines/` | the behavioural rules **distributed to** every machine (`AGENTS.md` = the rules; `CLAUDE.md` = a stub for other repos). Not this file. | change the always-on rules |
+| `skills/` | the user's **own** skill bundles, copied verbatim to each harness (`skills/README.md` = format) | add one of the user's own skills |
+| `harnesses/` | per-harness reference: what `wire <name>` does + manual steps | when a harness's wiring changes |
+| `docs/` | optional per-entry pages — rationale + fiddly setup, not tutorials | record a real decision or a painful setup |
 | `AGENTS.md`, `CLAUDE.md` (root) | how to work on this repo (this file) | when the repo's own structure/rules change |
-| `~/.ai-dev-env/config.toml` | **outside the repo** — the machine's secrets, `setup.py config` creates it | never — it lives in `$HOME`, not the clone, so it can't be committed |
+
+`~/.ai-dev-env/config.toml` — the machine's secrets, **outside the clone**;
+`setup.py config` creates it, and it can't be committed (it's in `$HOME`).
 
 ## Making a change
 
