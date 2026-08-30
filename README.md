@@ -75,11 +75,20 @@ There is deliberately **no `ai-dev-env` skill** — the agent already learns abo
 this repo from the "Environment repo" section that `guidelines` writes into
 `AGENTS.md`, and `setup.py report` is the live status command.
 
+## Local config (secrets)
+
+Tokens that MCP servers need (e.g. `NOTION_TOKEN`) go in
+**`~/.ai-dev-env/config.toml`** — a file you own, outside the repo clone, never
+committed. `setup.py config` creates it with every needed key blank; fill them
+in and re-run `wire`. Values are passed to each MCP server at wire time; an
+exported env var of the same name is the fallback.
+
 ## Commands
 
 ```
 setup.py report              # default — installed?, purpose, usage, what's missing
 setup.py install [ids] [--all|--each]
+setup.py config              # create/show ~/.ai-dev-env/config.toml
 setup.py wire <claude-code|codex|cursor|gemini-cli|generic>   # skills + MCP + guidelines + plugins
 setup.py skills [harness]                                     # just the bundled skills
 setup.py plugins [harness]                                    # just the external plugins

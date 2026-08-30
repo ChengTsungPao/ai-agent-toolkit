@@ -91,13 +91,15 @@ purpose  = "Official Notion MCP server (@notionhq/notion-mcp-server), installed 
 kind     = "mcp"
 verify   = "notion-mcp-server --help"
 docs     = "docs/tools/notion.md"
-setup    = "1) notion.so/profile/integrations -> New integration (internal); copy the ntn_... secret. 2) Set it: setx NOTION_TOKEN \"ntn_...\" (Windows) or export in ~/.zprofile (macOS). 3) On each Notion page/DB you want it to touch: ••• -> Connect to integration. Restrict the integration to 'Read content' only if you want read-only."
+setup    = "1) notion.so/profile/integrations -> New integration (internal); copy the ntn_ secret (set it to Read-content-only if you want read-only). 2) Paste it into ~/.ai-dev-env/config.toml under [env] NOTION_TOKEN, then re-run `setup.py wire <harness>`. 3) On each Notion page/DB you want reachable: top-right menu -> Connect to integration."
 [tool.install]
 default = "npm install -g @notionhq/notion-mcp-server"   # needs Node.js / npm
 [tool.mcp]
 command      = "notion-mcp-server"
 args         = []
-env_required = ["NOTION_TOKEN"]   # a secret — never injected into harness config; must be a persistent env var
+[tool.mcp.env_required]
+# key = human description, shown as a comment in ~/.ai-dev-env/config.toml
+NOTION_TOKEN = "Notion internal integration secret (starts ntn_). Create at https://www.notion.so/profile/integrations ; then on each page/DB you want reachable: top-right menu -> Connect to integration."
 [tool.mcp.windows]
 # npx/global bin resolution is unreliable when a harness spawns it on Windows;
 # go through cmd so the .cmd shim is found.

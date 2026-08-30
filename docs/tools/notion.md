@@ -13,15 +13,19 @@ with your token — no middleman service.
 still lives in Notion's cloud (Notion is a cloud product); anything the MCP
 creates or edits is written to your Notion workspace.
 
-## One-time setup (manual)
+## One-time setup
 
 1. **Create an integration**: https://www.notion.so/profile/integrations →
    *New integration* → *Internal*. Copy the secret (`ntn_...`).
    Set its capabilities to *Read content* only if you want it read-only.
-2. **Set the token** (persistent env var — never committed, never written into
-   harness config):
-   - Windows: `setx NOTION_TOKEN "ntn_..."` (then open a new shell / restart the harness)
-   - macOS/Linux: add `export NOTION_TOKEN="ntn_..."` to `~/.zprofile`
+2. **Put the token in your local config** — `~/.ai-dev-env/config.toml`
+   (`setup.py config` creates it; it lives outside the repo clone and is never
+   committed):
+   ```toml
+   [env]
+   NOTION_TOKEN = "ntn_..."
+   ```
+   Then `setup.py wire <harness>` again so the value reaches the MCP server.
 3. **Grant access to content**: on each Notion page or database you want it to
    touch → `•••` → *Connect to integration* → pick your integration.
    The integration only sees what you share.
@@ -34,9 +38,10 @@ binary as an MCP server. On Windows the command is `cmd /c notion-mcp-server`
 (the harness can't reliably resolve the npm `.cmd`/`.ps1` shim on its own);
 elsewhere plain `notion-mcp-server`.
 
-If `NOTION_TOKEN` isn't set at wire time, the server is still registered but
-won't connect — `setup.py doctor` / `report` flag this. Set the token and
-restart the harness.
+If `NOTION_TOKEN` is blank in `config.toml` at wire time, the server is still
+registered but idle — `setup.py doctor` / `report` flag it. Fill it in, re-run
+`wire`, restart the harness. (An exported `NOTION_TOKEN` env var also works and
+takes second priority after the config file.)
 
 ## Requirements
 

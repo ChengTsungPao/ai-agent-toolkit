@@ -8,12 +8,15 @@ Subcommands
 -----------
 report            (default) show every managed tool: installed?, purpose, usage
 install [tools]   install missing tools; asks "confirm each" vs "install all"
+config            create/show ~/.ai-dev-env/config.toml (fill in tokens here)
 wire <harness>    install bundled skills + MCP + guidelines + plugins into a harness
 guidelines        (re)install the always-on agent guidelines
 skills            (re)install the bundled skills/ into Claude Code + Codex
 plugins           (re)install external plugin ecosystems (e.g. superpowers)
 doctor            run each tool's verify command and report pass/fail
 
+Secrets (Notion token, …) go in ~/.ai-dev-env/config.toml — a file you own,
+outside the repo clone. `wire` reads it and passes the values to each MCP server.
 Nothing here is destructive. `install` always prints a plan and asks first.
 """
 from __future__ import annotations
@@ -30,6 +33,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 MANIFEST = REPO / "manifest.toml"
 SKILLS_DIR = REPO / "skills"
+CONFIG = Path(os.environ.get("AI_DEV_ENV_HOME") or Path.home() / ".ai-dev-env") / "config.toml"
 
 OS = {"Windows": "windows", "Darwin": "macos", "Linux": "linux"}.get(platform.system(), "linux")
 IS_WINDOWS = OS == "windows"
@@ -61,6 +65,88 @@ def load_tools() -> list[dict]:
 
 def load_plugins() -> list[dict]:
     return load_manifest().get("plugin", [])
+
+
+# ── local config (~/.ai-dev-env/config.toml) ───────────────────────────────
+def env_required(t: dict) -> dict[str, str]:
+    """{ENV_KEY: description} a tool's MCP server needs. Tolerates the old list form."""
+    er = t.get("mcp", {}).get("env_required", {})
+    return er if isinstance(er, dict) else {k: "" for k in er}
+
+
+def all_required_env() -> dict[str, str]:
+    out: dict[str, str] = {}
+    for t in load_tools():
+        out.update(env_required(t))
+    return out
+
+
+def load_config() -> dict:
+    if not CONFIG.exists():
+        return {}
+    with CONFIG.open("rb") as fh:
+        return tomllib.load(fh)
+
+
+def config_env() -> dict[str, str]:
+    """Filled-in [env] values from config.toml (blank entries dropped)."""
+    return {k: v for k, v in load_config().get("env", {}).items() if isinstance(v, str) and v.strip()}
+
+
+def resolved_env(keys) -> dict[str, str]:
+    """Value for each key from config.toml first, then the process environment."""
+    cfg = config_env()
+    out = {}
+    for k in keys:
+        v = cfg.get(k) or os.environ.get(k)
+        if v:
+            out[k] = v
+    return out
+
+
+def missing_env(t: dict) -> list[str]:
+    have = resolved_env(env_required(t))
+    return [k for k in env_required(t) if k not in have]
+
+
+def write_config_template() -> str:
+    """Ensure config.toml has every required key, keeping existing values.
+    Returns 'created', 'updated', or 'unchanged'."""
+    was = CONFIG.exists()
+    existing = load_config().get("env", {})
+    req = all_required_env()
+    lines = [
+        "# ai-dev-env local config — this machine only, NOT in git.",
+        "# Fill in the values below, then re-run:  setup.py wire <harness>",
+        "",
+        "[env]",
+    ]
+    for key, desc in req.items():
+        if desc:
+            for chunk in _wrap(desc, 74):
+                lines.append(f"# {chunk}")
+        val = existing.get(key, "")
+        lines.append(f'{key} = "{val}"')
+        lines.append("")
+    text = "\n".join(lines).rstrip() + "\n"
+    CONFIG.parent.mkdir(parents=True, exist_ok=True)
+    if was and CONFIG.read_text(encoding="utf-8") == text:
+        return "unchanged"
+    CONFIG.write_text(text, encoding="utf-8")
+    return "created" if not was else "updated"
+
+
+def _wrap(s: str, width: int) -> list[str]:
+    words, line, out = s.split(), "", []
+    for w in words:
+        if line and len(line) + 1 + len(w) > width:
+            out.append(line)
+            line = w
+        else:
+            line = f"{line} {w}".strip()
+    if line:
+        out.append(line)
+    return out
 
 
 GUIDE_BEGIN = "<!-- BEGIN ai-dev-env-guidelines -->"
@@ -126,8 +212,8 @@ def version_of(tool: dict) -> str:
         return ""
 
 
-def run(cmd: str, **kw) -> int:
-    print(dim(f"  $ {cmd}"))
+def run(cmd: str, display: str | None = None, **kw) -> int:
+    print(dim(f"  $ {display if display is not None else cmd}"))
     return subprocess.run(cmd, shell=True, **kw).returncode
 
 
@@ -144,8 +230,8 @@ def cmd_report(_args) -> int:
         usage = t.get("usage", {}).get("short")
         if usage:
             print(f"  {dim('use:')} {usage}")
-        for k in missing_required_env(t):
-            print(f"  {yellow('needs env:')} {k} (not set) — see `setup.py doctor` / docs")
+        for k in missing_env(t):
+            print(f"  {yellow('needs config:')} {k} — fill in {CONFIG}")
         doc = t.get("docs", "")
         if doc and not doc.startswith("http"):
             print(f"  {dim('docs:')} {REPO / doc}")
@@ -265,16 +351,24 @@ def mcp_spec(t: dict) -> tuple[str, list[str]]:
     return m["command"], list(m.get("args", []))
 
 
-def missing_required_env(t: dict) -> list[str]:
-    return [k for k in t.get("mcp", {}).get("env_required", []) if not os.environ.get(k)]
-
-
 def _warn_missing_env(t: dict) -> None:
-    for k in missing_required_env(t):
-        how = f'setx {k} "..."' if IS_WINDOWS else f'export {k}=... (add to ~/.zprofile)'
-        print(yellow(f"  {t['id']}: env {k} not set — server won't connect until you run:  {how}"))
-        if t.get("setup"):
-            print(dim(f"      {t['setup']}"))
+    miss = missing_env(t)
+    if not miss:
+        return
+    for k in miss:
+        print(yellow(f"  {t['id']}: {k} not set — server registered but idle until you fill it in"))
+    print(dim(f"      {CONFIG}   (then re-run: setup.py wire <harness>)"))
+    if t.get("setup"):
+        print(dim(f"      {t['setup']}"))
+
+
+def _mcp_env(t: dict, flag: str) -> tuple[str, str]:
+    """(real, masked) '<flag> K=V' string: non-secret [tool.env] + resolved required secrets."""
+    pairs = list(t.get("env", {}).items()) + list(resolved_env(env_required(t)).items())
+    secret = set(env_required(t))
+    real = " ".join(f"{flag} {k}={v}" for k, v in pairs)
+    masked = " ".join(f"{flag} {k}={'***' if k in secret else v}" for k, v in pairs)
+    return real, masked
 
 
 def bundled_skills() -> list[Path]:
@@ -359,11 +453,10 @@ def wire_claude_code(tools) -> int:
         command, arglist = mcp_spec(t)
         args = " ".join(arglist)
         # -e/--env is variadic, so it must come *after* the server name.
-        # Only non-secret [tool.env] is injected; env_required secrets stay in the
-        # user's environment and are never written into harness config.
-        env = " ".join(f"-e {k}={v}" for k, v in t.get("env", {}).items())
+        env, env_masked = _mcp_env(t, "-e")
         subprocess.run(f'claude mcp remove {t["id"]} -s user', shell=True, capture_output=True)
-        run(" ".join(f'claude mcp add --scope user {t["id"]} {env} -- {command} {args}'.split()))
+        base = f'claude mcp add --scope user {t["id"]} {{}} -- {command} {args}'
+        run(" ".join(base.format(env).split()), display=" ".join(base.format(env_masked).split()))
         _warn_missing_env(t)
     print(dim("  (graphify registers its own skill: run `graphify install --platform claude`)"))
     return 0
@@ -378,10 +471,11 @@ def wire_codex(tools) -> int:
     for t in _mcp_tools(tools):
         command, arglist = mcp_spec(t)
         args = " ".join(arglist)
-        env = " ".join(f"--env {k}={v}" for k, v in t.get("env", {}).items())
+        env, env_masked = _mcp_env(t, "--env")
         cmd = shutil.which(command) or command
         # `codex mcp add [--env K=V] <name> -- <cmd> <args>` — overwrites cleanly.
-        if run(" ".join(f'codex mcp add {env} {t["id"]} -- {cmd} {args}'.split())) != 0:
+        base = f'codex mcp add {{}} {t["id"]} -- {cmd} {args}'
+        if run(" ".join(base.format(env).split()), display=" ".join(base.format(env_masked).split())) != 0:
             print(yellow(f"  `codex mcp add` failed for {t['id']} — add manually to {codex_home}/config.toml"))
         _warn_missing_env(t)
     print(dim("  graphify: run `graphify install --platform codex`"))
@@ -442,11 +536,28 @@ WIRERS = {
 }
 
 
+def cmd_config(_args) -> int:
+    state = write_config_template()
+    print(bold("\nlocal config\n"))
+    print(f"  {CONFIG}   {dim(f'({state})')}")
+    have, need = config_env(), all_required_env()
+    for k in need:
+        state = green("set") if k in have else yellow("empty — fill this in")
+        print(f"  {k:<20} {state}")
+    if not need:
+        print(dim("  no tools need any config values"))
+    else:
+        print(dim("\n  edit the file, then: setup.py wire <harness>"))
+    return 0
+
+
 def cmd_wire(args) -> int:
     fn = WIRERS.get(args.harness)
     if not fn:
         print(red(f"unknown harness '{args.harness}'. choices: {', '.join(WIRERS)}"))
         return 2
+    if write_config_template() == "created":
+        print(dim(f"created {CONFIG} — fill in any tokens and re-run for them to take effect"))
     print(bold(f"\nwiring ai-dev-env into {args.harness}\n"))
     rc = fn(load_tools())
     _install_guidelines(args.harness)
@@ -492,8 +603,8 @@ def cmd_doctor(_args) -> int:
         ok = is_installed(t)
         print(f"{green('PASS') if ok else red('FAIL')}  {t['name']:<24} {dim(t.get('verify',''))}")
         rc |= 0 if ok else 1
-        for k in missing_required_env(t):
-            print(f"{yellow('WARN')}  {t['name']:<24} env {k} not set")
+        for k in missing_env(t):
+            print(f"{yellow('WARN')}  {t['name']:<24} {k} missing — fill in {CONFIG}")
             if t.get("setup"):
                 print(f"      {dim(t['setup'])}")
     return rc
@@ -512,6 +623,8 @@ def main() -> int:
     g.add_argument("--all", dest="mode", action="store_const", const="all", help="install everything, no per-item prompt")
     g.add_argument("--each", dest="mode", action="store_const", const="each", help="confirm each tool")
     pi.set_defaults(fn=cmd_install, mode=None)
+
+    sub.add_parser("config", help="create/show ~/.ai-dev-env/config.toml").set_defaults(fn=cmd_config)
 
     pw = sub.add_parser("wire", help="install bundled skills + MCP + guidelines into a harness")
     pw.add_argument("harness", choices=list(WIRERS))
