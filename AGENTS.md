@@ -49,29 +49,32 @@ from the generated "Environment repo" section in the installed `AGENTS.md`, and
 
 ## Layout
 
-```
-AGENTS.md / CLAUDE.md    working ON this repo (CLAUDE.md → AGENTS.md)
-manifest.toml            source of truth — the 4 sections
-scripts/setup.py         orchestrator (stdlib only, py3.11+, run via uv)
-scripts/install.{sh,ps1} bootstrap: ensure uv, hand off to setup.py
-guidelines/AGENTS.md     behavioural rules DISTRIBUTED to machines (not this doc)
-guidelines/CLAUDE.md     project-root stub, template for other repos
-skills/<name>/           your own skills (committed); third-party ones are [[skill]]
-harnesses/<name>.md      per-harness wiring notes
-docs/<id>.md             per-entry "why we chose this + how to set it up"
-```
+Data flow: **`manifest.toml` declares → `scripts/setup.py` acts →** the rest is
+content it distributes or notes.
+
+| path | role | you edit it to… |
+|---|---|---|
+| `manifest.toml` | the declaration (4 sections + decision table) | add/change/remove any tool, skill, plugin, or the guidelines pointer |
+| `scripts/setup.py` | the engine (report/install/config/wire/skills/plugins/guidelines/doctor). stdlib-only, py3.11+, run via `uv run --python 3.12` | only when adding a *new kind* of thing or a new subcommand — never for a new entry |
+| `scripts/install.sh`, `install.ps1` | fresh-machine bootstrap: ensure `uv`, then call setup.py | rarely — they're ~20 lines each |
+| `guidelines/AGENTS.md` | the behavioural rules **distributed to** every machine (injected into each harness's AGENTS.md). NOT this file. | change the always-on rules |
+| `guidelines/CLAUDE.md` | copy-me `CLAUDE.md` stub for *other* repos' roots | almost never |
+| `skills/<name>/` | the user's **own** skill bundles, committed, copied verbatim to each harness (`skills/README.md` = format) | add one of the user's own skills |
+| `harnesses/<name>.md` | per-harness reference: what `wire <name>` does + manual steps | when a harness's wiring changes |
+| `docs/<id>.md` | optional per-entry page — rationale + fiddly setup, not tutorials | when an entry has a real decision or a painful setup worth recording |
+| `AGENTS.md`, `CLAUDE.md` (root) | how to work on this repo (this file) | when the repo's own structure/rules change |
+| `~/.ai-dev-env/config.toml` | **outside the repo** — the machine's secrets, `setup.py config` creates it | never — it lives in `$HOME`, not the clone, so it can't be committed |
 
 ## Making changes
 
-- **Add / change a tool, skill, plugin, or guideline** → edit `manifest.toml`
-  (or `guidelines/AGENTS.md`) **only**. No `setup.py` change is needed for any of
-  the four kinds.
-- **Test** → `uv run --python 3.12 scripts/setup.py report` and `… doctor`.
-  For wiring changes, `… wire claude-code` is idempotent.
-- **Docs** (`docs/<id>.md`) are for decision rationale + fiddly setup steps,
-  not tutorials that duplicate upstream. Link from the manifest entry's
-  `docs = …`. A well-covered entry (obvious tool, `usage.short` says enough)
-  needs no doc.
+- Adding/changing a tool, skill, plugin, or guideline touches `manifest.toml`
+  (or `guidelines/AGENTS.md`) **only** — `report` / `install` / `wire` pick it
+  up with no `setup.py` change.
+- **Test** → `uv run --python 3.12 scripts/setup.py report` then `… doctor`.
+  `… wire claude-code` is idempotent, safe to re-run.
+- A `docs/<id>.md` page is optional — write one only when the entry has a real
+  decision or a painful setup worth recording; skip it if `usage.short` covers
+  it. Link it from the entry's `docs = …`.
 - Keep `setup.py` stdlib-only and Python 3.11+ compatible.
 
 ## Paths — read this before touching anything path-related

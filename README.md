@@ -64,6 +64,26 @@ setup.py doctor
 
 Run via `scripts/install.sh` / `.ps1`, or `uv run --python 3.12 scripts/setup.py …`.
 
+## How the repo is laid out
+
+`manifest.toml` **declares** what the environment should have.
+`scripts/setup.py` **reads it and does the work** — installs tools, registers
+MCP servers, copies skills, injects guidelines. Everything else is either
+content `setup.py` hands to your machines, or notes.
+
+| path | what it is |
+|---|---|
+| **`manifest.toml`** | the declaration. Four sections — `[guidelines]`, `[[tool]]`, `[[skill]]`, `[[plugin]]` — each entry says how to install/verify it and (for MCP servers) how to launch it. Decision table at the top of the file. |
+| **`scripts/setup.py`** | the engine. Subcommands: `report` · `install` · `config` · `wire <harness>` · `skills` · `plugins` · `guidelines` · `doctor`. Stdlib-only Python, always run through `uv`. |
+| **`scripts/install.sh`** / **`.ps1`** | fresh-machine bootstrap: ensure `uv` exists, then hand off to `setup.py`. macOS-Linux and Windows respectively. |
+| **`guidelines/AGENTS.md`** | the always-on behavioural rules (after Karpathy) that get injected into every harness's instruction file. *Distributed content* — not docs about this repo. |
+| **`guidelines/CLAUDE.md`** | a copy-me `CLAUDE.md` stub for **other** project roots. Not read by `setup.py`. |
+| **`skills/<name>/`** | your **own** skill bundles — committed here, copied verbatim into each harness. Format: [`skills/README.md`](skills/README.md). Third-party skills aren't here; they're `[[skill]]` entries in the manifest, cloned fresh at install. |
+| **`harnesses/<name>.md`** | per-harness reference — exactly what `wire` does for Claude Code / Codex / Cursor / Gemini / generic, and what it can't automate. |
+| **`docs/<id>.md`** | one optional page per manifest entry: *why* it was chosen + fiddly setup steps. Not tutorials. |
+| **`AGENTS.md`** / **`CLAUDE.md`** (root) | how to work **on this repo**. |
+| `~/.ai-dev-env/config.toml` | **not in the repo** — your machine's tokens, created by `setup.py config`. |
+
 ## Working on this repo · adding tools/skills/plugins
 
 See **[AGENTS.md](AGENTS.md)** — the model, the path rules, how to add each of
