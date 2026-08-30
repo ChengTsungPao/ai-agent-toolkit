@@ -28,6 +28,7 @@ Secrets (Notion token, …) go in ~/.ai-dev-env/config.toml — a file you own,
 outside the repo clone. `wire` reads it and passes the values to each MCP server.
 Nothing here is destructive. `install` always prints a plan and asks first.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -89,7 +90,7 @@ def ext_skills() -> list[dict]:
 def env_required(t: dict) -> dict[str, str]:
     """{ENV_KEY: description} a tool's MCP server needs. Tolerates the old list form."""
     er = t.get("mcp", {}).get("env_required", {})
-    return er if isinstance(er, dict) else {k: "" for k in er}
+    return er if isinstance(er, dict) else dict.fromkeys(er, "")
 
 
 def all_required_env() -> dict[str, str]:
@@ -295,7 +296,8 @@ def cmd_report(_args) -> int:
     _section("Guidelines")
     claude_agents = Path.home() / ".claude" / "AGENTS.md"
     have = claude_agents.exists() and GUIDE_BEGIN in claude_agents.read_text(encoding="utf-8")
-    print(f"{'':<24} {green('● installed') if have else red('○ not installed')}  {dim('AGENTS.md canonical, CLAUDE.md references it')}")
+    mark = green("● installed") if have else red("○ not installed")
+    print(f"{'':<24} {mark}  {dim('AGENTS.md canonical, CLAUDE.md references it')}")
     print(f"  {dim('install:')} setup.py guidelines")
 
     missing = [t["id"] for t in tools if not is_installed(t)]
@@ -356,10 +358,9 @@ def cmd_install(args) -> int:
 
     rc = 0
     for t in todo:
-        if mode == "each":
-            if input(f"install {t['name']}? [y/N] ").strip().lower() not in ("y", "yes"):
-                print(dim("  skipped"))
-                continue
+        if mode == "each" and input(f"install {t['name']}? [y/N] ").strip().lower() not in ("y", "yes"):
+            print(dim("  skipped"))
+            continue
         cmd = install_cmd(t)
         if not cmd:
             print(red(f"  no install command for {t['id']} on {OS}"))
@@ -527,7 +528,8 @@ def _install_plugins(harness: str) -> None:
             print(yellow(f"  plugin {p['id']}: {cmd.lstrip('# ').strip()}"))
             continue
         rc = run(cmd)
-        print((green if rc == 0 else red)(f"  plugin {p['id']} {'installed' if rc == 0 else 'FAILED — install manually'}"))
+        msg = "installed" if rc == 0 else "FAILED — install manually"
+        print((green if rc == 0 else red)(f"  plugin {p['id']} {msg}"))
 
 
 def wire_claude_code(tools) -> int:
@@ -537,12 +539,12 @@ def wire_claude_code(tools) -> int:
     _install_skills(Path.home() / ".claude" / "skills")
     for t in _mcp_tools(tools):
         command, arglist = mcp_spec(t)
-        command = shutil.which(command) or command   # absolute path — don't rely on the harness's PATH
+        command = shutil.which(command) or command  # absolute path — don't rely on the harness's PATH
         args = " ".join(arglist)
         # -e/--env is variadic, so it must come *after* the server name.
         env, env_masked = _mcp_env(t, "-e")
-        subprocess.run(f'claude mcp remove {t["id"]} -s user', shell=True, capture_output=True)
-        base = f'claude mcp add --scope user {t["id"]} {{}} -- {command} {args}'
+        subprocess.run(f"claude mcp remove {t['id']} -s user", shell=True, capture_output=True)
+        base = f"claude mcp add --scope user {t['id']} {{}} -- {command} {args}"
         run(" ".join(base.format(env).split()), display=" ".join(base.format(env_masked).split()))
         _warn_missing_env(t)
     print(dim("  (graphify registers its own skill: run `graphify install --platform claude`)"))
@@ -561,7 +563,7 @@ def wire_codex(tools) -> int:
         env, env_masked = _mcp_env(t, "--env")
         cmd = shutil.which(command) or command
         # `codex mcp add [--env K=V] <name> -- <cmd> <args>` — overwrites cleanly.
-        base = f'codex mcp add {{}} {t["id"]} -- {cmd} {args}'
+        base = f"codex mcp add {{}} {t['id']} -- {cmd} {args}"
         if run(" ".join(base.format(env).split()), display=" ".join(base.format(env_masked).split())) != 0:
             print(yellow(f"  `codex mcp add` failed for {t['id']} — add manually to {codex_home}/config.toml"))
         _warn_missing_env(t)
@@ -684,7 +686,7 @@ def cmd_doctor(_args) -> int:
     rc = 0
     for t in load_tools():
         ok = is_installed(t)
-        print(f"{green('PASS') if ok else red('FAIL')}  {t['name']:<24} {dim(t.get('verify',''))}")
+        print(f"{green('PASS') if ok else red('FAIL')}  {t['name']:<24} {dim(t.get('verify', ''))}")
         rc |= 0 if ok else 1
         for k in missing_env(t):
             print(f"{yellow('WARN')}  {t['name']:<24} {k} missing — fill in {CONFIG}")
@@ -695,7 +697,9 @@ def cmd_doctor(_args) -> int:
 
 # ── main ───────────────────────────────────────────────────────────────────
 def main() -> int:
-    p = argparse.ArgumentParser(prog="setup.py", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = argparse.ArgumentParser(
+        prog="setup.py", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     sub = p.add_subparsers(dest="cmd")
 
     sub.add_parser("report", help="show managed tools (default)").set_defaults(fn=cmd_report)
@@ -703,7 +707,7 @@ def main() -> int:
     pi = sub.add_parser("install", help="install missing tools")
     pi.add_argument("tools", nargs="*", help="tool ids (default: all)")
     g = pi.add_mutually_exclusive_group()
-    g.add_argument("--all", dest="mode", action="store_const", const="all", help="install everything, no per-item prompt")
+    g.add_argument("--all", dest="mode", action="store_const", const="all", help="install everything, no prompt")
     g.add_argument("--each", dest="mode", action="store_const", const="each", help="confirm each tool")
     pi.set_defaults(fn=cmd_install, mode=None)
 
