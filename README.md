@@ -36,6 +36,7 @@ it, then runs everything on a pinned Python.
 | **uv** | tool | Python toolchain; every other CLI is an isolated `uv tool` |
 | **Basic Memory** | MCP | private, local, **human-editable** Markdown memory shared across harnesses |
 | **Notion MCP** | MCP | official `@notionhq/notion-mcp-server`, runs locally — read/write Notion pages & DBs |
+| **Chrome DevTools MCP** | MCP | drive a local Chrome — navigate, screenshot, console, Lighthouse, perf traces |
 | **graphify** | tool | codebase → queryable knowledge graph (tree-sitter + Leiden), `/graphify` |
 | **grill-me** | skill | relentless interview to sharpen a plan before coding, `/grill-me` |
 | **superpowers** | plugin | obra's agentic dev methodology — 20+ auto-activating skills |

@@ -116,6 +116,24 @@ default = "uv tool install graphifyy"
 [tool.usage]
 short = "In a harness: /graphify .  (build graph for current repo) · graphify query \"how does X work\" · graphify extract <path>. Registers its own skill per-harness via `graphify install --platform <name>`."
 
+# ---- Chrome DevTools MCP --------------------------------------------- mcp
+[[tool]]
+id      = "chrome-devtools"
+name    = "Chrome DevTools MCP"
+kind    = "mcp"
+purpose = "Google's Chrome DevTools MCP — drive a real Chrome from the agent: navigate, click / fill forms, screenshot, read the DOM and console, run Lighthouse, record performance traces, inspect network. Launches or attaches to local Chrome; nothing leaves the machine."
+verify  = "chrome-devtools-mcp --version"
+[tool.install]
+default = "npm install -g chrome-devtools-mcp"   # needs Node.js / npm
+[tool.mcp]
+command = "chrome-devtools-mcp"
+args    = []
+[tool.mcp.windows]
+command = "cmd"
+args    = ["/c", "chrome-devtools-mcp"]
+[tool.usage]
+short = "Ask the agent to open a page / screenshot it / check console errors / run a perf trace. Needs Chrome or Chromium (downloads a matching build on first use if none found). No token."
+
 
 # ═════════════════════════════════ SKILLS ════════════════════════════════
 # Cloned fresh from `repo` each run; `paths` are the sub-dirs to copy into the

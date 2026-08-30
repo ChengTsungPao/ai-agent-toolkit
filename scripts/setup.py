@@ -658,7 +658,9 @@ def cmd_wire(args) -> int:
 
 
 def cmd_guidelines(args) -> int:
-    targets = [args.harness] if args.harness else ["claude-code", "codex", "gemini-cli"]
+    # default matches `skills` / `plugins`: the two harnesses `wire` fully
+    # automates. gemini-cli / cursor are opt-in — pass them explicitly.
+    targets = [args.harness] if args.harness else ["claude-code", "codex"]
     print(bold("\ninstalling agent guidelines\n"))
     for h in targets:
         print(dim(h))
@@ -723,7 +725,7 @@ def main() -> int:
     pw.set_defaults(fn=cmd_wire)
 
     pg = sub.add_parser("guidelines", help="install always-on agent guidelines (AGENTS.md + CLAUDE.md ref)")
-    pg.add_argument("harness", nargs="?", choices=list(WIRERS), help="default: claude-code, codex, gemini-cli")
+    pg.add_argument("harness", nargs="?", choices=list(WIRERS), help="default: claude-code + codex")
     pg.set_defaults(fn=cmd_guidelines, harness=None)
 
     ps = sub.add_parser("skills", help="install bundled skills/ into a harness")
