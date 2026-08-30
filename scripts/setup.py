@@ -304,7 +304,7 @@ def cmd_report(_args) -> int:
         print(yellow(f"missing: {', '.join(missing)}   →   setup.py install"))
     else:
         print(green("all tools installed"))
-    print(dim("wire a harness:  setup.py wire <claude-code|codex|cursor|gemini-cli|generic>"))
+    print(dim("wire a harness:  setup.py wire <claude-code|codex|cursor|generic>"))
     return 0
 
 
@@ -481,7 +481,7 @@ def env_repo_pointer() -> str:
         f"- **Report:** `uv run --python 3.12 {r}/scripts/setup.py report`\n"
         "- **Install:** list what is missing plus each command, ask the user "
         '*"confirm each"* or *"install all"*, then `setup.py install --each|--all`.\n'
-        "- **Wire a harness:** `setup.py wire <claude-code|codex|cursor|gemini-cli|generic>`\n"
+        "- **Wire a harness:** `setup.py wire <claude-code|codex|cursor|generic>`\n"
         f"- Per-entry docs: `{r}/docs/*.md`. Add things by editing "
         f"`{r}/manifest.toml` (4 sections: `[guidelines]` / `[[tool]]` / "
         "`[[skill]]` / `[[plugin]]`)."
@@ -506,9 +506,6 @@ def _install_guidelines(harness: str) -> None:
         print(green(f"  guidelines → {home / 'AGENTS.md'} ({a}),  {home / 'CLAUDE.md'} ({c}, reference only)"))
     elif harness == "codex":
         p = _codex_home() / "AGENTS.md"
-        print(green(f"  guidelines → {p} ({upsert_block(p, body)})"))
-    elif harness == "gemini-cli":
-        p = Path.home() / ".gemini" / "GEMINI.md"
         print(green(f"  guidelines → {p} ({upsert_block(p, body)})"))
     elif harness == "cursor":
         print(dim(f"  guidelines: add {REPO / 'guidelines' / 'AGENTS.md'} as a project AGENTS.md"))
@@ -589,13 +586,6 @@ def wire_cursor(tools) -> int:
     return 0
 
 
-def wire_gemini(tools) -> int:
-    _print_mcp_json(tools, Path.home() / ".gemini" / "settings.json", key="mcpServers")
-    _print_bundled_skills()
-    print(dim("  graphify: run `graphify install --platform gemini`"))
-    return 0
-
-
 def _print_mcp_json(tools, path: Path, key: str = "mcpServers") -> None:
     import json
 
@@ -623,7 +613,6 @@ WIRERS = {
     "claude-code": wire_claude_code,
     "codex": wire_codex,
     "cursor": wire_cursor,
-    "gemini-cli": wire_gemini,
     "generic": wire_generic,
 }
 
@@ -659,7 +648,7 @@ def cmd_wire(args) -> int:
 
 def cmd_guidelines(args) -> int:
     # default matches `skills` / `plugins`: the two harnesses `wire` fully
-    # automates. gemini-cli / cursor are opt-in — pass them explicitly.
+    # automates. `cursor` is opt-in — pass it explicitly.
     targets = [args.harness] if args.harness else ["claude-code", "codex"]
     print(bold("\ninstalling agent guidelines\n"))
     for h in targets:

@@ -3,7 +3,7 @@
 My portable AI dev environment. One repo that knows every tool I deliberately
 installed, what it's for, and how to wire it — plus skills, plugins, and
 always-on guidelines — into whatever AI harness I run (Claude Code, Codex,
-Cursor, Gemini CLI), on Windows / macOS / Linux.
+Cursor), on Windows / macOS / Linux.
 
 Fresh machine = clone + one script.
 
@@ -58,7 +58,7 @@ committed. `setup.py config` creates it with every key blank; fill in and re-run
 setup.py report              # grouped status: MCP servers / CLI tools / Skills / Plugins / Guidelines
 setup.py install [ids] [--all|--each]
 setup.py config              # create/show ~/.ai-dev-env/config.toml
-setup.py wire <claude-code|codex|cursor|gemini-cli|generic>   # MCP + skills + guidelines + plugins
+setup.py wire <claude-code|codex|cursor|generic>   # MCP + skills + guidelines + plugins
 setup.py skills | plugins | guidelines [harness]              # one group only
 setup.py doctor
 ```
@@ -77,7 +77,7 @@ Run via `scripts/install.sh` / `.ps1`, or `uv run --python 3.12 scripts/setup.py
 | **`scripts/`** | the engine (`setup.py`) and the fresh-machine bootstrap (`install.sh` / `install.ps1`) |
 | **`guidelines/`** | the always-on behavioural rules injected into every harness — content distributed *to* machines, not docs about this repo |
 | **`skills/`** | your **own** skill bundles (committed). Third-party skills live in `manifest.toml` as `[[skill]]`, not here |
-| **`harnesses/`** | per-harness reference — what `wire` does for Claude Code / Codex / Cursor / Gemini, and the manual steps |
+| **`harnesses/`** | per-harness reference — what `wire` does for Claude Code / Codex / Cursor, and the manual steps |
 | **`docs/`** | one optional page per manifest entry: *why* it was chosen + fiddly setup |
 | **`AGENTS.md`** / **`CLAUDE.md`** | how to work **on this repo** |
 

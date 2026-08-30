@@ -28,11 +28,11 @@ schema_version = 2
 
 
 # ═══════════════════════════════ GUIDELINES ═══════════════════════════════
-# AGENTS.md is canonical (cross-harness standard); CLAUDE.md / GEMINI.md get a
-# one-line reference to it. guidelines/CLAUDE.md is a project-root template,
-# not read by setup.py.
+# AGENTS.md is canonical (cross-harness standard); CLAUDE.md gets a one-line
+# reference to it. guidelines/CLAUDE.md is a project-root template, not read by
+# setup.py.
 [guidelines]
-canonical = "guidelines/AGENTS.md"   # full text -> ~/.claude/AGENTS.md, $CODEX_HOME/AGENTS.md, ~/.gemini/GEMINI.md
+canonical = "guidelines/AGENTS.md"   # full text -> ~/.claude/AGENTS.md, $CODEX_HOME/AGENTS.md
 
 
 # ═════════════════════════════════ TOOLS ═════════════════════════════════
@@ -153,7 +153,6 @@ purpose = "Jesse Vincent's (obra) agentic software-development methodology: 20+ 
 docs    = "docs/superpowers.md"
 [plugin.install]
 claude-code = "claude plugin install superpowers@claude-plugins-official"
-gemini-cli  = "gemini extensions install https://github.com/obra/superpowers"
 codex       = "# interactive: run `/plugins`, search 'superpowers', Install"
 cursor      = "# interactive: run `/add-plugin superpowers`"
 [plugin.verify]

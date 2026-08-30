@@ -2,7 +2,7 @@
 
 This repo provisions a personal AI dev environment: it installs a fixed set of
 tools and wires them — plus skills, plugins, and always-on guidelines — into
-whatever AI harness you run (Claude Code, Codex, Cursor, Gemini CLI), on
+whatever AI harness you run (Claude Code, Codex, Cursor), on
 Windows / macOS / Linux.
 
 Also follow the behavioural rules in [`guidelines/AGENTS.md`](guidelines/AGENTS.md).
@@ -28,20 +28,24 @@ the top of that file:
 
 | section | what it is | `setup.py` subcommand |
 |---|---|---|
-| `[guidelines]` | always-on behavioural rules, marker-injected into each harness's `AGENTS.md` (+ a one-line ref in `CLAUDE.md` / `GEMINI.md`) | `guidelines`, `wire` |
+| `[guidelines]` | always-on behavioural rules, marker-injected into each harness's `AGENTS.md` (+ a one-line ref in `CLAUDE.md`) | `guidelines`, `wire` |
 | `[[tool]]` | a CLI installed by a package manager. A `[tool.mcp]` sub-block ⇒ it is also wired as an MCP server | `install`, `doctor`, `wire` |
 | `[[skill]]` | a third-party skill — git repo + sub-paths, shallow-cloned **fresh at install** (latest, not auto-updated after) | `skills`, `wire` |
 | `[[plugin]]` | a plugin ecosystem installed through the harness's own plugin mechanism (which also updates it) | `plugins`, `wire` |
 
 Your **own** skills go as committed folders under `skills/<name>/` (with a
 `SKILL.md`); `wire` / `skills` copies them into `~/.claude/skills/` and
-`$CODEX_HOME/skills/`. Cursor / Gemini have no skills dir — their paths are
-printed for manual wiring.
+`$CODEX_HOME/skills/`. Cursor has no skills dir — its paths are printed for
+manual wiring.
 
 `setup.py` commands: `report` (default, grouped status) · `install` · `config` ·
 `wire <harness>` · `skills` · `plugins` · `guidelines` · `doctor`. `wire`
-automates Claude Code and Codex fully; for Cursor / Gemini / generic it prints
-the MCP JSON and skill paths to apply by hand.
+automates Claude Code and Codex fully; for Cursor / generic it prints the MCP
+JSON and skill paths to apply by hand.
+
+Gemini CLI and Google Antigravity are **not** wired by this repo (no reliable
+global config path known / not in active use). Add them to `WIRERS` if that
+changes.
 
 There is deliberately **no `ai-dev-env` skill** — an agent learns about the repo
 from the generated "Environment repo" section in the installed `AGENTS.md`, and

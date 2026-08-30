@@ -40,7 +40,7 @@ What it does and how to use it.
 |---|---|
 | Claude Code | `~/.claude/skills/<name>/` |
 | Codex | `$CODEX_HOME/skills/<name>/` |
-| Cursor / Gemini CLI | no native skills dir — `wire` prints the bundle paths to wire manually |
+| Cursor | no native skills dir — `wire` prints the bundle paths to wire manually |
 
 `wire` copies the whole bundle folder, overwriting the harness copy, so the repo
 stays the source of truth. Edit here, re-run `wire`.
