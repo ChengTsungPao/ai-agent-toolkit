@@ -58,7 +58,7 @@ guidelines/AGENTS.md     behavioural rules DISTRIBUTED to machines (not this doc
 guidelines/CLAUDE.md     project-root stub, template for other repos
 skills/<name>/           your own skills (committed); third-party ones are [[skill]]
 harnesses/<name>.md      per-harness wiring notes
-docs/tools/<id>.md       one per tool/skill/plugin
+docs/<id>.md             per-entry "why we chose this + how to set it up"
 ```
 
 ## Making changes
@@ -68,8 +68,10 @@ docs/tools/<id>.md       one per tool/skill/plugin
   the four kinds.
 - **Test** → `uv run --python 3.12 scripts/setup.py report` and `… doctor`.
   For wiring changes, `… wire claude-code` is idempotent.
-- **Docs** live in `docs/tools/<id>.md`, one per tool/skill/plugin; link them
-  from the manifest entry's `docs = …`.
+- **Docs** (`docs/<id>.md`) are for decision rationale + fiddly setup steps,
+  not tutorials that duplicate upstream. Link from the manifest entry's
+  `docs = …`. A well-covered entry (obvious tool, `usage.short` says enough)
+  needs no doc.
 - Keep `setup.py` stdlib-only and Python 3.11+ compatible.
 
 ## Paths — read this before touching anything path-related

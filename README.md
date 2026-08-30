@@ -41,7 +41,7 @@ it, then runs everything on a pinned Python.
 | **superpowers** | plugin | obra's agentic dev methodology — 20+ auto-activating skills |
 | Karpathy rules | guidelines | think before coding · simplicity first · surgical changes · goal-driven |
 
-Per-item detail: [`docs/tools/`](docs/tools/). Source of truth:
+Per-item detail: [`docs/`](docs/). Source of truth:
 [`manifest.toml`](manifest.toml).
 
 ## Local config (secrets)

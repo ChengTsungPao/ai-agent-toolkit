@@ -61,7 +61,7 @@ name    = "Basic Memory"
 kind    = "cli+mcp"
 purpose = "Private, local, human-editable knowledge memory shared across every AI harness. Notes are plain Markdown on disk (~/basic-memory), indexed in a local SQLite db with local embeddings. No cloud, no account. Review/curate changes in any editor, Obsidian, or via git."
 verify  = "basic-memory --version"
-docs    = "docs/tools/basic-memory.md"
+docs    = "docs/basic-memory.md"
 [tool.install]
 default = "uv tool install basic-memory"
 [tool.post_install]
@@ -82,7 +82,7 @@ name    = "Notion MCP"
 kind    = "mcp"
 purpose = "Official Notion MCP server (@notionhq/notion-mcp-server), installed globally via npm and run locally: search / read / create / update Notion pages and databases, and comments. No middleman service — the local process talks straight to api.notion.com with a token you own; scope it to only the pages/DBs you share, and it can be read-only. Your Notion data still lives in Notion's cloud (Notion is a cloud product); 'local' only means the MCP process and token stay on your machine."
 verify  = "notion-mcp-server --help"
-docs    = "docs/tools/notion.md"
+docs    = "docs/notion.md"
 setup   = "1) notion.so/profile/integrations -> New integration (internal); copy the ntn_ secret (Read-content-only if you want read-only). 2) Paste it into ~/.ai-dev-env/config.toml under [env] NOTION_TOKEN, then re-run `setup.py wire <harness>`. 3) On each Notion page/DB you want reachable: top-right menu -> Connect to integration."
 [tool.install]
 default = "npm install -g @notionhq/notion-mcp-server"   # needs Node.js / npm
@@ -110,7 +110,7 @@ kind    = "cli+skill"
 purpose = "Turns a codebase (or folder of docs/PDFs) into a queryable knowledge graph via local tree-sitter AST parsing + Leiden community detection. Produces graph.html, GRAPH_REPORT.md, graph.json. Complements Basic Memory: graphify is derived/disposable structure over code, Basic Memory is curated long-term facts."
 verify  = "graphify --version"
 pypi    = "graphifyy"
-docs    = "docs/tools/graphify.md"
+docs    = "docs/graphify.md"
 [tool.install]
 default = "uv tool install graphifyy"
 [tool.usage]
@@ -124,7 +124,6 @@ short = "In a harness: /graphify .  (build graph for current repo) · graphify q
 id    = "grill-me"
 repo  = "https://github.com/mattpocock/skills"
 paths = ["skills/productivity/grill-me", "skills/productivity/grilling"]
-docs  = "docs/tools/grill-me.md"
 
 
 # ════════════════════════════════ PLUGINS ════════════════════════════════
@@ -133,7 +132,7 @@ docs  = "docs/tools/grill-me.md"
 [[plugin]]
 id      = "superpowers"
 purpose = "Jesse Vincent's (obra) agentic software-development methodology: 20+ composable, auto-activating skills (TDD, systematic debugging, brainstorming, git worktrees, code review) plus a bootstrap that makes the agent actually check for a relevant skill before each task."
-docs    = "docs/tools/superpowers.md"
+docs    = "docs/superpowers.md"
 [plugin.install]
 claude-code = "claude plugin install superpowers@claude-plugins-official"
 gemini-cli  = "gemini extensions install https://github.com/obra/superpowers"
