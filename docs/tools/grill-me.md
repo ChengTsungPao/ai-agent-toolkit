@@ -1,7 +1,10 @@
 # grill-me
 
 **Source:** [mattpocock/skills](https://github.com/mattpocock/skills) — MIT © Matt Pocock.
-Vendored into `skills/grill-me/` + `skills/grilling/`.
+An external `[[skill]]` in `manifest.toml` — `setup.py skills` / `wire`
+shallow-clones the repo and copies `skills/productivity/grill-me` +
+`skills/productivity/grilling` fresh each run, so you always install the latest.
+Not committed here; not auto-updated after install.
 
 ## What it is
 
@@ -22,12 +25,12 @@ Needs no repo, writes no files, and the subject doesn't have to be code.
 off to the `grilling` skill, which runs the round-based interview loop. The
 session ends when every branch is settled and you confirm shared understanding.
 
-## Why vendored, not the plugin
+## Why an external `[[skill]]`, not the plugin
 
 The mattpocock plugin (`claude plugins install mattpocock-skills`) installs all
-~25 of his skills and auto-updates. Here we only want `grill-me`, and the two
-files are tiny and MIT — so they live in `skills/` as editable bundles. Pull
-upstream changes by re-copying.
+~25 of his skills. We only want `grill-me` (+ its `grilling` delegate), so
+`manifest.toml` records just those sub-paths and `setup.py` fetches them from
+the repo at install time — latest version, nothing else pulled in.
 
 ## Related (not installed)
 

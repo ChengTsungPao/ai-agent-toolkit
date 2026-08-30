@@ -11,7 +11,8 @@ install [tools]   install missing tools; asks "confirm each" vs "install all"
 config            create/show ~/.ai-dev-env/config.toml (fill in tokens here)
 wire <harness>    install bundled skills + MCP + guidelines + plugins into a harness
 guidelines        (re)install the always-on agent guidelines
-skills            (re)install the bundled skills/ into Claude Code + Codex
+skills            (re)install skills — local skills/ folders + [[skill]] entries
+                  (the latter re-cloned fresh, so this pulls their latest)
 plugins           (re)install external plugin ecosystems (e.g. superpowers)
 doctor            run each tool's verify command and report pass/fail
 
@@ -27,6 +28,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import tempfile
 import tomllib
 from pathlib import Path
 
@@ -68,6 +70,11 @@ def load_tools() -> list[dict]:
 
 def load_plugins() -> list[dict]:
     return load_manifest().get("plugin", [])
+
+
+def ext_skills() -> list[dict]:
+    """[[skill]] entries — external skills cloned fresh from git at install time."""
+    return load_manifest().get("skill", [])
 
 
 # ── local config (~/.ai-dev-env/config.toml) ───────────────────────────────
@@ -252,10 +259,12 @@ def cmd_report(_args) -> int:
     print("  Always-on behavioral rules (AGENTS.md canonical, CLAUDE.md references it).")
     print(f"  {dim('install:')} python scripts/setup.py guidelines")
 
-    # bundled skills
-    skills = bundled_skills()
-    print(f"\n{bold('Bundled skills'):<28} {', '.join(s.name for s in skills) if skills else dim('(none in skills/)')}")
-    if skills:
+    # skills
+    local = [s.name for s in bundled_skills()]
+    ext = [s["id"] for s in ext_skills()]
+    names = ", ".join(local + [f"{e} (latest at install)" for e in ext]) or dim("(none)")
+    print(f"\n{bold('Skills'):<28} {names}")
+    if local or ext:
         print(f"  {dim('install:')} python scripts/setup.py skills")
 
     # external plugins
@@ -381,18 +390,40 @@ def bundled_skills() -> list[Path]:
     return sorted(d for d in SKILLS_DIR.iterdir() if d.is_dir() and (d / "SKILL.md").is_file())
 
 
+def _copy_skill_dir(src: Path, dest_root: Path, note: str = "") -> None:
+    dst = dest_root / src.name
+    if dst.exists():
+        shutil.rmtree(dst)
+    shutil.copytree(src, dst, ignore=shutil.ignore_patterns(".git"))
+    print(green(f"  skill  → {dst}") + (dim(f"  {note}") if note else ""))
+
+
+def _install_ext_skills(dest_root: Path) -> None:
+    """Shallow-clone each [[skill]] repo and copy its sub-paths — always latest."""
+    for s in ext_skills():
+        with tempfile.TemporaryDirectory(prefix="ai-dev-env-") as tmp:
+            r = subprocess.run(f'git clone --depth 1 -q {s["repo"]} "{tmp}"', shell=True, capture_output=True)
+            if r.returncode != 0:
+                print(red(f"  skill {s['id']}: git clone failed ({s['repo']}) — skipped this run"))
+                continue
+            for sub in s.get("paths", [s["id"]]):
+                src = Path(tmp) / sub
+                if not (src / "SKILL.md").is_file():
+                    print(red(f"  skill {s['id']}: {sub}/SKILL.md not found upstream — skipped"))
+                    continue
+                origin = "/".join(s["repo"].rstrip("/").split("/")[-2:])
+                _copy_skill_dir(src, dest_root, f"(latest from {origin})")
+
+
 def _install_skills(dest_root: Path) -> None:
-    skills = bundled_skills()
-    if not skills:
-        print(dim("  skills: none bundled in skills/"))
+    local, ext = bundled_skills(), ext_skills()
+    if not local and not ext:
+        print(dim("  skills: none configured"))
         return
     dest_root.mkdir(parents=True, exist_ok=True)
-    for src in skills:
-        dst = dest_root / src.name
-        if dst.exists():
-            shutil.rmtree(dst)
-        shutil.copytree(src, dst)
-        print(green(f"  skill  → {dst}"))
+    for src in local:
+        _copy_skill_dir(src, dest_root)
+    _install_ext_skills(dest_root)
 
 
 CLAUDE_REF = (
@@ -488,9 +519,11 @@ def wire_codex(tools) -> int:
 def _print_bundled_skills() -> None:
     skills = bundled_skills()
     if skills:
-        print(dim("  bundled skills (wire manually — no native skills dir):"))
+        print(dim("  local skills (wire manually — no native skills dir):"))
         for s in skills:
             print(dim(f"    {s / 'SKILL.md'}"))
+    for s in ext_skills():
+        print(dim(f"  external skill '{s['id']}': clone {s['repo']} and copy {', '.join(s.get('paths', [s['id']]))}"))
 
 
 def wire_cursor(tools) -> int:

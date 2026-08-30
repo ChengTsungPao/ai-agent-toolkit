@@ -3,6 +3,15 @@
 Skill bundles installed into every harness by `setup.py wire <harness>`
 (and by `setup.py skills`).
 
+Two kinds of skill:
+
+- **Local bundles** — folders in *this* directory. Committed, frozen, yours to
+  edit. Put your own skills here.
+- **External skills** — `[[skill]]` entries in `manifest.toml`. Not stored here;
+  `setup.py` shallow-clones the source repo and copies the listed sub-paths at
+  install time, so you always get the **latest** version. Not auto-updated
+  afterwards — re-run `setup.py skills` to refresh.
+
 ## Layout
 
 One folder per skill, each containing a `SKILL.md` with frontmatter:

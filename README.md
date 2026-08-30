@@ -53,13 +53,14 @@ everywhere.
 
 ## Skills & plugins
 
-**Bundled skills** — `skills/<name>/SKILL.md` bundles (see
-[`skills/README.md`](skills/README.md)); `wire` copies them into every harness's
-skills dir (`~/.claude/skills/`, `$CODEX_HOME/skills/`). Currently:
+**Skills** land in every harness's skills dir (`~/.claude/skills/`,
+`$CODEX_HOME/skills/`) via `wire` / `setup.py skills`. Two kinds
+(see [`skills/README.md`](skills/README.md)):
 
-| skill | what |
-|---|---|
-| `grill-me` (+ `grilling`) | relentless interview to sharpen a plan before coding — `/grill-me` |
+| skill | kind | what |
+|---|---|---|
+| your own | local folder in `skills/` | committed, frozen, edit freely |
+| `grill-me` (+ `grilling`) | `[[skill]]` in `manifest.toml` | cloned fresh from [mattpocock/skills](https://github.com/mattpocock/skills) at install — **latest each run** — `/grill-me` |
 
 **External plugins** — large, self-updating ecosystems recorded under
 `[[plugin]]` in `manifest.toml` and installed per-harness (not vendored):
@@ -120,7 +121,7 @@ scripts/
 guidelines/
   AGENTS.md              canonical always-on agent rules + env-repo pointer
   CLAUDE.md              project-level reference stub
-skills/                  vendored skill bundles installed into every harness
+skills/                  your own skill bundles (committed); external ones live in manifest.toml
 harnesses/               per-harness wiring notes
 docs/tools/              per-tool / per-skill / per-plugin docs
 ```

@@ -32,6 +32,16 @@ cursor      = "# interactive: run `/add-plugin superpowers`"
 [plugin.verify]
 claude-code = "claude plugin list"
 
+# External skills — NOT vendored. `setup.py skills` / `wire` shallow-clones the
+# repo fresh each run and copies the listed sub-paths into the harness skills
+# dir, so you always install the latest version. Your own skills go as folders
+# under skills/ instead (those are committed and frozen).
+[[skill]]
+id    = "grill-me"
+repo  = "https://github.com/mattpocock/skills"
+paths = ["skills/productivity/grill-me", "skills/productivity/grilling"]
+docs  = "docs/tools/grill-me.md"
+
 # uv is the only hard prerequisite. The bootstrap scripts install it if missing;
 # it is listed here so `report` / `doctor` can see it, but it is self-managing.
 [[tool]]
