@@ -35,7 +35,7 @@ installs it if missing, then runs everything on a pinned Python.
 | **uv** | Python toolchain; installs every other CLI as an isolated `uv tool` |
 | **Basic Memory** | private, local, **human-editable** Markdown memory shared across all harnesses (MCP) |
 | **graphify** | codebase → queryable knowledge graph (tree-sitter AST + Leiden), `/graphify` |
-| **Notion MCP** | official `@notionhq/notion-mcp-server`, local via npx — read/create/update Notion pages & DBs (needs `NOTION_TOKEN`) |
+| **Notion MCP** | official `@notionhq/notion-mcp-server` (npm global), runs locally — read/create/update Notion pages & DBs (token in `config.toml`) |
 
 Full detail per tool: [`docs/tools/`](docs/tools/). Source of truth:
 [`manifest.toml`](manifest.toml).

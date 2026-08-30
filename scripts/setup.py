@@ -38,6 +38,9 @@ CONFIG = Path(os.environ.get("AI_DEV_ENV_HOME") or Path.home() / ".ai-dev-env") 
 OS = {"Windows": "windows", "Darwin": "macos", "Linux": "linux"}.get(platform.system(), "linux")
 IS_WINDOWS = OS == "windows"
 
+if IS_WINDOWS:
+    os.system("")  # enable ANSI escape processing in the Windows console
+
 
 # ── ansi ────────────────────────────────────────────────────────────────────
 def _c(code: str, s: str) -> str:

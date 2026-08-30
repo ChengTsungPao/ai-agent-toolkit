@@ -49,6 +49,10 @@ Node.js + npm. (`npx -y @notionhq/notion-mcp-server` also works in principle but
 npm 11.16–11.17 has an `npx` regression on Windows — `Cannot read properties of
 undefined (reading 'standard')` — so a global install is used instead.)
 
+On macOS, `npm install -g` needs a user-writable global prefix — fine with
+Homebrew node, nvm, fnm, or volta; a raw `/usr/local` system node may need
+`sudo` or `npm config set prefix ~/.npm-global`.
+
 ## Usage
 
 Talk to the agent ("add this to my Notion tasks", "what's in my reading list?")
