@@ -17,6 +17,8 @@ report            (default) grouped status: MCP servers / CLI tools / Skills /
                   Plugins / Guidelines
 install [tools]   install missing [[tool]] entries; "confirm each" vs "install all"
 config            create/show ~/.ai-dev-env/config.toml (fill in tokens here)
+choose            pick which managed items to skip (writes config [skip].ids;
+                  honoured by install / wire / skills / plugins)
 wire <harness>    everything for one harness: MCP servers + skills + guidelines + plugins
 guidelines        (re)install the always-on agent guidelines
 skills            (re)install skills — local skills/ folders + [[skill]] entries
@@ -135,31 +137,51 @@ def missing_env(t: dict) -> list[str]:
     return [k for k in env_required(t) if k not in have]
 
 
-def write_config_template() -> str:
-    """Ensure config.toml has every required key, keeping existing values.
-    Returns 'created', 'updated', or 'unchanged'."""
-    was = CONFIG.exists()
-    existing = load_config().get("env", {})
-    req = all_required_env()
+def skipped_ids() -> set[str]:
+    """Manifest ids the user has excluded from install / wire (config [skip].ids)."""
+    ids = load_config().get("skip", {}).get("ids", [])
+    return {str(i) for i in ids} if isinstance(ids, list) else set()
+
+
+def _config_body(skip_override: list[str] | None = None) -> str:
+    cfg = load_config()
+    env = cfg.get("env", {})
+    skip = skip_override if skip_override is not None else list(cfg.get("skip", {}).get("ids", []))
     lines = [
         "# ai-dev-env local config — this machine only, NOT in git.",
-        "# Fill in the values below, then re-run:  setup.py wire <harness>",
         "",
+        "# Secrets each MCP server needs. Fill in, then re-run: setup.py wire <harness>",
         "[env]",
     ]
-    for key, desc in req.items():
-        if desc:
-            for chunk in _wrap(desc, 74):
-                lines.append(f"# {chunk}")
-        val = existing.get(key, "")
-        lines.append(f'{key} = "{val}"')
+    for key, desc in all_required_env().items():
+        for chunk in _wrap(desc, 74):
+            lines.append(f"# {chunk}")
+        lines.append(f'{key} = "{env.get(key, "")}"')
         lines.append("")
-    text = "\n".join(lines).rstrip() + "\n"
+    lines += [
+        "# Managed items to leave OUT of install / wire / skills / plugins.",
+        "# ids come from `setup.py report`; edit here or run `setup.py choose`.",
+        "[skip]",
+        "ids = [" + ", ".join(f'"{i}"' for i in skip) + "]",
+    ]
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def write_config_template() -> str:
+    """Ensure config.toml exists and matches the manifest, keeping existing
+    values. Returns 'created', 'updated', or 'unchanged'."""
+    was = CONFIG.exists()
+    text = _config_body()
     CONFIG.parent.mkdir(parents=True, exist_ok=True)
     if was and CONFIG.read_text(encoding="utf-8") == text:
         return "unchanged"
     CONFIG.write_text(text, encoding="utf-8")
     return "created" if not was else "updated"
+
+
+def set_skip(ids: list[str]) -> None:
+    CONFIG.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG.write_text(_config_body(sorted(set(ids))), encoding="utf-8")
 
 
 def _wrap(s: str, width: int) -> list[str]:
@@ -251,10 +273,13 @@ def _section(title: str) -> None:
     print(f"\n{bold(title)}\n{dim('─' * len(title))}")
 
 
-def _report_tool(t: dict) -> None:
-    ok = is_installed(t)
-    mark = green("● installed") if ok else red("○ missing")
-    ver = version_of(t) if ok else ""
+def _report_tool(t: dict, skip: set[str]) -> None:
+    if t["id"] in skip:
+        mark, ver = dim("⊘ skipped"), ""
+    else:
+        ok = is_installed(t)
+        mark = green("● installed") if ok else red("○ missing")
+        ver = version_of(t) if ok else ""
     print(f"{bold(t['name']):<24} {mark}  {dim(ver)}")
     print(f"  {t['purpose']}")
     if t.get("usage", {}).get("short"):
@@ -267,8 +292,13 @@ def _report_tool(t: dict) -> None:
     print()
 
 
+def _skip_tag(id_: str, skip: set[str]) -> str:
+    return dim("  ⊘ skipped") if id_ in skip else ""
+
+
 def cmd_report(_args) -> int:
     tools = load_tools()
+    skip = skipped_ids()
     print(bold(f"\nai-dev-env  ·  {platform.system()}  ·  repo: {REPO}"))
 
     mcp = [t for t in tools if t.get("mcp")]
@@ -277,18 +307,18 @@ def cmd_report(_args) -> int:
     if mcp:
         _section("MCP servers")
         for t in mcp:
-            _report_tool(t)
+            _report_tool(t, skip)
     if cli:
         _section("CLI tools")
         for t in cli:
-            _report_tool(t)
+            _report_tool(t, skip)
 
     _section("Skills")
     for s in bundled_skills():
-        print(f"{bold(s.name):<24} {dim('local (committed)')}")
+        print(f"{bold(s.name):<24} {dim('local (committed)')}{_skip_tag(s.name, skip)}")
     for s in ext_skills():
         origin = "/".join(s["repo"].rstrip("/").split("/")[-2:])
-        print(f"{bold(s['id']):<24} {dim(f'external — latest from {origin} at install')}")
+        print(f"{bold(s['id']):<24} {dim(f'external — latest from {origin}')}{_skip_tag(s['id'], skip)}")
     if not bundled_skills() and not ext_skills():
         print(dim("(none)"))
     print(f"  {dim('install:')} setup.py skills")
@@ -297,7 +327,7 @@ def cmd_report(_args) -> int:
     if plugins:
         _section("Plugins")
         for p in plugins:
-            print(f"{bold(p['id']):<24} {p['purpose'][:88]}…")
+            print(f"{bold(p['id']):<24} {p['purpose'][:80]}…{_skip_tag(p['id'], skip)}")
         print(f"  {dim('install:')} setup.py plugins  (per-harness; some interactive)")
 
     _section("Guidelines")
@@ -307,8 +337,10 @@ def cmd_report(_args) -> int:
     print(f"{'':<24} {mark}  {dim('AGENTS.md canonical, CLAUDE.md references it')}")
     print(f"  {dim('install:')} setup.py guidelines")
 
-    missing = [t["id"] for t in tools if not is_installed(t)]
+    missing = [t["id"] for t in tools if t["id"] not in skip and not is_installed(t)]
     print()
+    if skip:
+        print(dim(f"skipped (config [skip]): {', '.join(sorted(skip))}   ·   change: setup.py choose"))
     if missing:
         print(yellow(f"missing: {', '.join(missing)}   →   setup.py install"))
     else:
@@ -337,13 +369,19 @@ def _persist_env(key: str, value: str) -> None:
 
 
 def cmd_install(args) -> int:
+    _first_run_gate()
     tools = load_tools()
-    wanted = args.tools or [t["id"] for t in tools]
+    skip = skipped_ids()
+    # explicit `install <id>` overrides the skip list; a bare run honours it
+    wanted = set(args.tools) if args.tools else {t["id"] for t in tools} - skip
     todo = [t for t in tools if t["id"] in wanted and not is_installed(t)]
     already = [t["id"] for t in tools if t["id"] in wanted and is_installed(t)]
+    left_out = sorted({t["id"] for t in tools} & skip - set(args.tools or []))
 
     if already:
         print(dim(f"already installed: {', '.join(already)}"))
+    if left_out:
+        print(dim(f"skipped (config [skip]): {', '.join(left_out)}"))
     if not todo:
         print(green("nothing to install."))
         return 0
@@ -391,7 +429,8 @@ def cmd_install(args) -> int:
 
 # ── wire ───────────────────────────────────────────────────────────────────
 def _mcp_tools(tools) -> list[dict]:
-    return [t for t in tools if t.get("mcp")]
+    skip = skipped_ids()
+    return [t for t in tools if t.get("mcp") and t["id"] not in skip]
 
 
 def mcp_spec(t: dict) -> tuple[str, list[str]]:
@@ -427,6 +466,15 @@ def bundled_skills() -> list[Path]:
     return sorted(d for d in SKILLS_DIR.iterdir() if d.is_dir() and (d / "SKILL.md").is_file())
 
 
+def managed_items() -> list[tuple[str, str]]:
+    """(id, kind label) for everything install / wire can act on, in display order."""
+    items = [(t["id"], "MCP server" if t.get("mcp") else "tool") for t in load_tools()]
+    items += [(s.name, "skill (local)") for s in bundled_skills()]
+    items += [(s["id"], "skill") for s in ext_skills()]
+    items += [(p["id"], "plugin") for p in load_plugins()]
+    return items
+
+
 def _copy_skill_dir(src: Path, dest_root: Path, note: str = "") -> None:
     dst = dest_root / src.name
     if dst.exists():
@@ -437,7 +485,11 @@ def _copy_skill_dir(src: Path, dest_root: Path, note: str = "") -> None:
 
 def _install_ext_skills(dest_root: Path) -> None:
     """Shallow-clone each [[skill]] repo and copy its sub-paths — always latest."""
+    skip = skipped_ids()
     for s in ext_skills():
+        if s["id"] in skip:
+            print(dim(f"  skill {s['id']}: skipped (config [skip])"))
+            continue
         with tempfile.TemporaryDirectory(prefix="ai-dev-env-") as tmp:
             r = subprocess.run(f'git clone --depth 1 -q {s["repo"]} "{tmp}"', shell=True, capture_output=True)
             if r.returncode != 0:
@@ -457,8 +509,12 @@ def _install_skills(dest_root: Path) -> None:
     if not local and not ext:
         print(dim("  skills: none configured"))
         return
+    skip = skipped_ids()
     dest_root.mkdir(parents=True, exist_ok=True)
     for src in local:
+        if src.name in skip:
+            print(dim(f"  skill {src.name}: skipped (config [skip])"))
+            continue
         _copy_skill_dir(src, dest_root)
     _install_ext_skills(dest_root)
 
@@ -526,7 +582,11 @@ def _install_plugins(harness: str) -> None:
     plugins = load_plugins()
     if not plugins:
         return
+    skip = skipped_ids()
     for p in plugins:
+        if p["id"] in skip:
+            print(dim(f"  plugin {p['id']}: skipped (config [skip])"))
+            continue
         cmd = p.get("install", {}).get(harness)
         if not cmd:
             print(dim(f"  plugin {p['id']}: no install path for {harness}"))
@@ -636,8 +696,57 @@ def cmd_config(_args) -> int:
         print(f"  {k:<20} {state}")
     if not need:
         print(dim("  no tools need any config values"))
-    else:
-        print(dim("\n  edit the file, then: setup.py wire <harness>"))
+
+    skip = skipped_ids()
+    print(f"\n  {bold('[skip]')}  {', '.join(sorted(skip)) if skip else dim('(nothing skipped)')}")
+    print(dim("  change: setup.py choose"))
+    if need:
+        print(dim("\n  fill in the file, then: setup.py wire <harness>"))
+    return 0
+
+
+def _choose_interactive() -> None:
+    """Toggle which managed items are skipped; writes config [skip].ids."""
+    items = managed_items()
+    skip = skipped_ids()
+    while True:
+        print()
+        for i, (id_, kind) in enumerate(items, 1):
+            mark = red("skip") if id_ in skip else green(" on ")
+            print(f"  {i:>2}  [{mark}]  {bold(id_):<24} {dim(kind)}")
+        raw = input("\ntoggle (numbers/ids, space-separated; blank = done) > ").strip()
+        if not raw:
+            break
+        valid = {i[0] for i in items}
+        for tok in raw.replace(",", " ").split():
+            id_ = items[int(tok) - 1][0] if tok.isdigit() and 1 <= int(tok) <= len(items) else tok
+            if id_ not in valid:
+                print(red(f"  ? unknown: {tok}"))
+            elif id_ in skip:
+                skip.discard(id_)
+            else:
+                skip.add(id_)
+    set_skip(sorted(skip))
+    print(green(f"\nsaved → {CONFIG}"))
+    print(dim(f"skipping: {', '.join(sorted(skip)) or '(nothing)'}"))
+
+
+def _first_run_gate() -> None:
+    """On the very first config creation, offer to pick what to skip."""
+    if write_config_template() != "created":
+        return
+    print(dim(f"created {CONFIG}"))
+    if not sys.stdin.isatty():
+        return
+    n = len(managed_items())
+    print(bold(f"\nFirst run — {n} managed items (tools, MCP servers, skills, plugins)."))
+    if input("Set up [A]ll, or [c]hoose what to skip?  ").strip().lower() in ("c", "choose"):
+        _choose_interactive()
+
+
+def cmd_choose(_args) -> int:
+    write_config_template()
+    _choose_interactive()
     return 0
 
 
@@ -646,8 +755,7 @@ def cmd_wire(args) -> int:
     if not fn:
         print(red(f"unknown harness '{args.harness}'. choices: {', '.join(WIRERS)}"))
         return 2
-    if write_config_template() == "created":
-        print(dim(f"created {CONFIG} — fill in any tokens and re-run for them to take effect"))
+    _first_run_gate()
     print(bold(f"\nwiring ai-dev-env into {args.harness}\n"))
     rc = fn(load_tools())
     _install_guidelines(args.harness)
@@ -691,7 +799,11 @@ def cmd_skills(args) -> int:
 # ── doctor ─────────────────────────────────────────────────────────────────
 def cmd_doctor(_args) -> int:
     rc = 0
+    skip = skipped_ids()
     for t in load_tools():
+        if t["id"] in skip:
+            print(f"{dim('SKIP')}  {t['name']:<24} {dim('config [skip]')}")
+            continue
         ok = is_installed(t)
         print(f"{green('PASS') if ok else red('FAIL')}  {t['name']:<24} {dim(t.get('verify', ''))}")
         rc |= 0 if ok else 1
@@ -719,6 +831,8 @@ def main() -> int:
     pi.set_defaults(fn=cmd_install, mode=None)
 
     sub.add_parser("config", help="create/show ~/.ai-dev-env/config.toml").set_defaults(fn=cmd_config)
+
+    sub.add_parser("choose", help="pick which tools/skills/plugins to skip").set_defaults(fn=cmd_choose)
 
     pw = sub.add_parser("wire", help="install bundled skills + MCP + guidelines into a harness")
     pw.add_argument("harness", choices=list(WIRERS))

@@ -45,12 +45,17 @@ it, then runs everything on a pinned Python.
 Per-item detail: [`docs/`](docs/). Source of truth:
 [`manifest.toml`](manifest.toml).
 
-## Local config (secrets)
+## Local config
 
-Tokens an MCP server needs (e.g. `NOTION_TOKEN`) go in
 **`~/.ai-dev-env/config.toml`** — a file you own, outside the clone, never
-committed. `setup.py config` creates it with every key blank; fill in and re-run
-`wire`.
+committed. Holds two things:
+
+- `[env]` — secrets each MCP server needs (e.g. `NOTION_TOKEN`)
+- `[skip]` — ids of tools/skills/plugins to leave out of `install` / `wire`
+
+The first `install` / `wire` on a fresh machine creates it and asks *"set up
+everything, or choose what to skip?"*. Change the picks any time with
+`setup.py choose` (or edit `[skip].ids`).
 
 ## Commands
 
@@ -58,6 +63,7 @@ committed. `setup.py config` creates it with every key blank; fill in and re-run
 setup.py report              # grouped status: MCP servers / CLI tools / Skills / Plugins / Guidelines
 setup.py install [ids] [--all|--each]
 setup.py config              # create/show ~/.ai-dev-env/config.toml
+setup.py choose              # pick which items to skip
 setup.py wire <claude-code|codex|cursor|generic>   # MCP + skills + guidelines + plugins
 setup.py skills | plugins | guidelines [harness]              # one group only
 setup.py doctor

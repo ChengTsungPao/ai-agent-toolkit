@@ -39,7 +39,7 @@ Your **own** skills go as committed folders under `skills/<name>/` (with a
 manual wiring.
 
 `setup.py` commands: `report` (default, grouped status) · `install` · `config` ·
-`wire <harness>` · `skills` · `plugins` · `guidelines` · `doctor`. `wire`
+`choose` · `wire <harness>` · `skills` · `plugins` · `guidelines` · `doctor`. `wire`
 automates Claude Code and Codex fully; for Cursor / generic it prints the MCP
 JSON and skill paths to apply by hand.
 
@@ -66,8 +66,10 @@ content it distributes or notes.
 | `docs/` | optional per-entry pages — rationale + fiddly setup, not tutorials | record a real decision or a painful setup |
 | `AGENTS.md`, `CLAUDE.md` (root) | how to work on this repo (this file) | when the repo's own structure/rules change |
 
-`~/.ai-dev-env/config.toml` — the machine's secrets, **outside the clone**;
-`setup.py config` creates it, and it can't be committed (it's in `$HOME`).
+`~/.ai-dev-env/config.toml` — **outside the clone**, per machine. `[env]` holds
+MCP secrets; `[skip].ids` lists tools/skills/plugins to leave out of
+`install` / `wire` (set via `setup.py choose`; the first run asks). `setup.py
+config` creates it; it can't be committed (it's in `$HOME`).
 
 ## Making a change
 
