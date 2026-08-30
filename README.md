@@ -60,7 +60,6 @@ skills dir (`~/.claude/skills/`, `$CODEX_HOME/skills/`). Currently:
 | skill | what |
 |---|---|
 | `grill-me` (+ `grilling`) | relentless interview to sharpen a plan before coding — `/grill-me` |
-| `notion` | route notes/tasks/links into the right Notion DB; needs the `notion-mcp` server + your workspace map filled in |
 
 **External plugins** — large, self-updating ecosystems recorded under
 `[[plugin]]` in `manifest.toml` and installed per-harness (not vendored):

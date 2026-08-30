@@ -55,12 +55,18 @@ Homebrew node, nvm, fnm, or volta; a raw `/usr/local` system node may need
 
 ## Usage
 
-Talk to the agent ("add this to my Notion tasks", "what's in my reading list?")
-or use the **`notion` skill** (`skills/notion/SKILL.md`) — fill its workspace
-map with your real database IDs so routing doesn't need to be re-explained.
+Talk to the agent ("add this to my reading-list database", "what's in the
+Trend Micro Interview page?"). Name the page/DB or let it `API-post-search`
+first. For writes, the agent should fetch the DB schema
+(`API-retrieve-a-data-source`) before creating rows so property names match.
 
-Key tools: `notion-search`, `notion-fetch`, `notion-create-pages`,
-`notion-update-page`, `notion-create-comment`.
+Key tools: `API-post-search`, `API-retrieve-page-markdown`,
+`API-retrieve-a-page`, `API-post-page`, `API-patch-page`,
+`API-patch-block-children`, `API-create-a-comment`.
+
+(There was a `notion` skill for workspace-specific routing; dropped as
+redundant — the MCP tools are enough. Re-add a pure workspace-map skill later
+if re-explaining your DB layout gets tedious.)
 
 ## Notes
 

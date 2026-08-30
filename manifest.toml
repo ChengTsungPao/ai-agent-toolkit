@@ -106,4 +106,4 @@ NOTION_TOKEN = "Notion internal integration secret (starts ntn_). Create at http
 command      = "cmd"
 args         = ["/c", "notion-mcp-server"]
 [tool.usage]
-short = "Ask the agent to search / read / add / update Notion content; or use the `notion` skill for your workspace conventions. Tools: notion-search, notion-fetch, notion-create-pages, notion-update-page, notion-create-comment, … (DB deletion is blocked by design)."
+short = "Ask the agent to search / read / add / update Notion content; name the page/DB or let it search. Tools: API-post-search, API-retrieve-page-markdown, API-post-page, API-patch-page, API-create-a-comment, … (DB deletion is blocked by design)."
