@@ -39,7 +39,27 @@ Your **own** skills go as committed folders under `skills/<name>/` (with a
 printed for manual wiring.
 
 `setup.py` commands: `report` (default, grouped status) · `install` · `config` ·
-`wire <harness>` · `skills` · `plugins` · `guidelines` · `doctor`.
+`wire <harness>` · `skills` · `plugins` · `guidelines` · `doctor`. `wire`
+automates Claude Code and Codex fully; for Cursor / Gemini / generic it prints
+the MCP JSON and skill paths to apply by hand.
+
+There is deliberately **no `ai-dev-env` skill** — an agent learns about the repo
+from the generated "Environment repo" section in the installed `AGENTS.md`, and
+`setup.py report` is the live status command. Do not add one.
+
+## Layout
+
+```
+AGENTS.md / CLAUDE.md    working ON this repo (CLAUDE.md → AGENTS.md)
+manifest.toml            source of truth — the 4 sections
+scripts/setup.py         orchestrator (stdlib only, py3.11+, run via uv)
+scripts/install.{sh,ps1} bootstrap: ensure uv, hand off to setup.py
+guidelines/AGENTS.md     behavioural rules DISTRIBUTED to machines (not this doc)
+guidelines/CLAUDE.md     project-root stub, template for other repos
+skills/<name>/           your own skills (committed); third-party ones are [[skill]]
+harnesses/<name>.md      per-harness wiring notes
+docs/tools/<id>.md       one per tool/skill/plugin
+```
 
 ## Making changes
 
