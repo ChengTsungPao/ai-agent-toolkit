@@ -65,37 +65,37 @@ content it distributes or notes.
 | `AGENTS.md`, `CLAUDE.md` (root) | how to work on this repo (this file) | when the repo's own structure/rules change |
 | `~/.ai-dev-env/config.toml` | **outside the repo** — the machine's secrets, `setup.py config` creates it | never — it lives in `$HOME`, not the clone, so it can't be committed |
 
-## Making changes
+## Making a change
 
-- Adding/changing a tool, skill, plugin, or guideline touches `manifest.toml`
-  (or `guidelines/AGENTS.md`) **only** — `report` / `install` / `wire` pick it
-  up with no `setup.py` change.
-- **Test** → `uv run --python 3.12 scripts/setup.py report` then `… doctor`.
-  `… wire claude-code` is idempotent, safe to re-run.
-- A `docs/<id>.md` page is optional — write one only when the entry has a real
-  decision or a painful setup worth recording; skip it if `usage.short` covers
-  it. Link it from the entry's `docs = …`.
-- Keep `setup.py` stdlib-only and Python 3.11+ compatible.
+1. **Edit `manifest.toml`** (or `guidelines/AGENTS.md` for a rule). Adding an
+   entry never needs a `setup.py` change — the manifest *is* the input.
+2. **Check** → `uv run --python 3.12 scripts/setup.py report`, then `… doctor`.
+3. **Apply** → `… wire claude-code` (idempotent — re-run any time).
+4. **Optional doc** → add `docs/<id>.md` and link it from the entry's `docs = …`
+   *only* if there's a real decision or a painful setup worth recording; skip it
+   when `usage.short` already says enough.
 
-## Paths — read this before touching anything path-related
+`setup.py` itself changes only for a whole new *kind* of thing or a new
+subcommand — and stays stdlib-only, Python 3.11+.
 
-- **Never hard-code the clone location.** Scripts derive the repo root from their
-  own location: `Path(__file__).resolve().parent.parent` (setup.py),
-  `$PSScriptRoot` (ps1), `${BASH_SOURCE[0]}` (sh). All `manifest.toml` paths
-  (`docs`, `guidelines.canonical`, `[[skill]].paths`) are **relative to the repo
-  root** and resolved against it.
-- `~/ai-dev-env` is the *recommended* path and what the docs show — but the repo
-  must keep working cloned anywhere.
-- The installed guidelines' "Environment repo" section is **generated** by
-  `setup.py` with this machine's real clone path (`repo_display()`), not a
-  hard-coded `~/ai-dev-env`. Do not write that section into
-  `guidelines/AGENTS.md` by hand.
-- **Local state and secrets** live in `~/.ai-dev-env/config.toml` — *outside* the
-  clone, never committed. Override the directory with `$AI_DEV_ENV_HOME`.
-  (`~/.ai-dev-env/` the state dir is a different thing from `~/ai-dev-env/` the
-  clone — note the dot.)
-- In code use `pathlib` / `Path`, never string-concatenate paths. In docs use
-  forward slashes. `.gitattributes` forces LF everywhere except `*.ps1` (CRLF).
-- Per-OS differences live in exactly three places: `[tool.install]` keys
-  (`macos`/`linux`/`windows`/`default`), `[tool.mcp.<os>]` command overrides, and
-  `_persist_env()`. Add OS branches only there.
+## Invariants — don't break these
+
+1. **No hard-coded clone path.** The repo must work cloned anywhere;
+   `~/ai-dev-env` is only the recommended spot. Scripts find their own root
+   (`Path(__file__).resolve().parent.parent`, `$PSScriptRoot`,
+   `${BASH_SOURCE[0]}`); every manifest path (`docs`, `guidelines.canonical`,
+   `[[skill]].paths`) is relative to that root.
+
+2. **Secrets never enter the repo.** They live in `~/.ai-dev-env/config.toml`
+   (created by `setup.py config`; dir overridable with `$AI_DEV_ENV_HOME`).
+   Mind the dot — `~/.ai-dev-env/` is machine state, `~/ai-dev-env/` is the clone.
+
+3. **The installed guidelines' "Environment repo" section is generated** by
+   `setup.py` (`repo_display()`), with this machine's real path. Never hand-write
+   it into `guidelines/AGENTS.md`.
+
+4. **Per-OS code lives in exactly three places:** `[tool.install]` OS keys,
+   `[tool.mcp.<os>]` command overrides, and `_persist_env()`. Nowhere else.
+
+5. **Style:** `pathlib.Path` in code, never string-joined paths; forward slashes
+   in docs; `.gitattributes` keeps everything LF except `*.ps1` (CRLF).
