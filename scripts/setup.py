@@ -540,6 +540,7 @@ def wire_claude_code(tools) -> int:
     _install_skills(Path.home() / ".claude" / "skills")
     for t in _mcp_tools(tools):
         command, arglist = mcp_spec(t)
+        command = shutil.which(command) or command   # absolute path — don't rely on the harness's PATH
         args = " ".join(arglist)
         # -e/--env is variadic, so it must come *after* the server name.
         env, env_masked = _mcp_env(t, "-e")
