@@ -482,7 +482,7 @@ def env_repo_pointer() -> str:
         "- **Install:** list what is missing plus each command, ask the user "
         '*"confirm each"* or *"install all"*, then `setup.py install --each|--all`.\n'
         "- **Wire a harness:** `setup.py wire <claude-code|codex|cursor|gemini-cli|generic>`\n"
-        f"- Per-tool docs: `{r}/docs/tools/*.md`. Add things by editing "
+        f"- Per-entry docs: `{r}/docs/*.md`. Add things by editing "
         f"`{r}/manifest.toml` (4 sections: `[guidelines]` / `[[tool]]` / "
         "`[[skill]]` / `[[plugin]]`)."
     )
