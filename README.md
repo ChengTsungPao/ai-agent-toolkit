@@ -124,14 +124,19 @@ Commit, push. No `setup.py` change needed for any of these.
 ## Layout
 
 ```
+AGENTS.md / CLAUDE.md    how to work on THIS repo (read first)
 manifest.toml            source of truth — [guidelines] / [[tool]] / [[skill]] / [[plugin]]
 scripts/
   setup.py               orchestrator (stdlib only, py3.11+)
   install.sh / .ps1      bootstrap (ensure uv, run setup.py)
 guidelines/
-  AGENTS.md              canonical always-on agent rules + env-repo pointer
-  CLAUDE.md              project-level reference stub
+  AGENTS.md              behavioural rules distributed to each harness (env-repo
+                         pointer is appended at install with the real clone path)
+  CLAUDE.md              project-root reference stub (template for other repos)
 skills/                  your own skill folders (committed); third-party ones are [[skill]] in manifest.toml
 harnesses/               per-harness wiring notes
 docs/tools/              per-tool / per-skill / per-plugin docs
 ```
+
+Root `AGENTS.md` / `CLAUDE.md` document working **on** this repo; the ones in
+`guidelines/` are content **distributed to** each machine — different jobs.

@@ -462,6 +462,32 @@ CLAUDE_REF = (
 )
 
 
+def repo_display() -> str:
+    """This machine's clone path, ~-relative when under home (for docs/prose)."""
+    try:
+        return "~/" + REPO.relative_to(Path.home()).as_posix()
+    except ValueError:
+        return REPO.as_posix()
+
+
+def env_repo_pointer() -> str:
+    """Generated 'Environment repo' section — path-accurate for this machine."""
+    r = repo_display()
+    return (
+        "## Environment repo\n\n"
+        f"Tools, MCP servers, skills, plugins, and these guidelines are managed by "
+        f"`{r}`. When the user asks what is installed, how to use a managed tool, "
+        "or to install / fix / set up something:\n\n"
+        f"- **Report:** `uv run --python 3.12 {r}/scripts/setup.py report`\n"
+        "- **Install:** list what is missing plus each command, ask the user "
+        '*"confirm each"* or *"install all"*, then `setup.py install --each|--all`.\n'
+        "- **Wire a harness:** `setup.py wire <claude-code|codex|cursor|gemini-cli|generic>`\n"
+        f"- Per-tool docs: `{r}/docs/tools/*.md`. Add things by editing "
+        f"`{r}/manifest.toml` (4 sections: `[guidelines]` / `[[tool]]` / "
+        "`[[skill]]` / `[[plugin]]`)."
+    )
+
+
 def _codex_home() -> Path:
     return Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
 
@@ -472,7 +498,7 @@ def _install_guidelines(harness: str) -> None:
     AGENTS.md carries the full text; CLAUDE.md only references it.
     All edits are marker-delimited and idempotent.
     """
-    body = guidelines_text()
+    body = guidelines_text().rstrip() + "\n\n" + env_repo_pointer()
     if harness == "claude-code":
         home = Path.home() / ".claude"
         a = upsert_block(home / "AGENTS.md", body)

@@ -3,6 +3,8 @@
   Source: https://github.com/multica-ai/andrej-karpathy-skills (MIT), after
   Andrej Karpathy's notes on LLM coding pitfalls.
   Managed by ai-dev-env — edit here, then re-run `setup.py guidelines`.
+  On install, setup.py appends an "Environment repo" section pointing at this
+  machine's clone; keep this file to the behavioural rules only.
 -->
 
 # Agent Guidelines
@@ -77,20 +79,3 @@ work") require constant clarification.
 rewrites due to overcomplication, and clarifying questions come before
 implementation rather than after mistakes.
 
-## Environment repo
-
-Tools, MCP servers, bundled skills, and these guidelines are managed by
-`~/ai-dev-env` (github.com/ChengTsungPao/ai-dev-env). When the user asks what is
-installed, how to use a managed tool, or to install / fix / set up something:
-
-- **Report current state:**
-  `uv run --python 3.12 ~/ai-dev-env/scripts/setup.py report`
-- **Install:** first list what is missing plus each install command, ask the
-  user *"confirm each"* or *"install all"*, then run
-  `setup.py install --each` or `setup.py install --all`.
-- **Wire a harness** (skills + MCP + guidelines):
-  `setup.py wire <claude-code|codex|cursor|gemini-cli|generic>`
-- Per-tool detail lives in `~/ai-dev-env/docs/tools/*.md`.
-
-To add a tool: append a `[[tool]]` block to `~/ai-dev-env/manifest.toml`, commit,
-push. To add a skill: drop a `skills/<name>/SKILL.md` bundle in the repo.
