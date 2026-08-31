@@ -116,6 +116,31 @@ default = "uv tool install graphifyy"
 [tool.usage]
 short = "In a harness: /graphify .  (build graph for current repo) · graphify query \"how does X work\" · graphify extract <path>. Registers its own skill per-harness via `graphify install --platform <name>`."
 
+# ---- CodeGraph ----------------------------------------------------- cli + mcp
+# Overlaps graphify on purpose (running both while comparing them). CodeGraph is
+# a live, auto-syncing MCP; graphify is a one-shot build + visual report.
+[[tool]]
+id      = "codegraph"
+name    = "CodeGraph"
+kind    = "cli+mcp"
+purpose = "Pre-indexed code knowledge graph (Rust core, local SQLite/FTS5) exposed as an MCP server. Answers 'how does X reach Y', 'who calls this', 'impact of changing Z' in one tool call instead of the agent grepping. A background daemon auto-syncs the index on file changes (~0.3s). 30+ languages, 100% local, no keys. Overlaps graphify — graphify = one-shot build + graph.html/GRAPH_REPORT; codegraph = always-live MCP for call-path / impact queries while coding."
+verify  = "codegraph --version"
+docs    = "docs/codegraph.md"
+[tool.install]
+macos   = "curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh"
+linux   = "curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh"
+windows = "powershell -ExecutionPolicy Bypass -c \"irm https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.ps1 | iex\""
+[tool.post_install]
+default = "codegraph telemetry off"   # anonymous usage telemetry is on by default
+[tool.mcp]
+command = "codegraph"
+args    = ["serve", "--mcp"]
+[tool.mcp.windows]
+command = "cmd"
+args    = ["/c", "codegraph", "serve", "--mcp"]
+[tool.usage]
+short = "Per repo: `codegraph init` once (builds .codegraph/ — gitignore it). Then the agent uses codegraph_explore / codegraph_node / impact / callers automatically. CLI: codegraph impact <sym> · callers <sym> · explore \"...\" · daemon (stop watchers)."
+
 # ---- Chrome DevTools MCP --------------------------------------------- mcp
 [[tool]]
 id      = "chrome-devtools"

@@ -38,6 +38,7 @@ it, then runs everything on a pinned Python.
 | **Notion MCP** | MCP | official `@notionhq/notion-mcp-server`, runs locally — read/write Notion pages & DBs |
 | **Chrome DevTools MCP** | MCP | drive a local Chrome — navigate, screenshot, console, Lighthouse, perf traces |
 | **graphify** | tool | codebase → queryable knowledge graph (tree-sitter + Leiden), `/graphify` |
+| **CodeGraph** | MCP | live auto-syncing code graph — "who calls X / impact of changing Y" in one call (overlaps graphify; being compared) |
 | **grill-me** | skill | relentless interview to sharpen a plan before coding, `/grill-me` |
 | **superpowers** | plugin | obra's agentic dev methodology — 20+ auto-activating skills |
 | Karpathy rules | guidelines | think before coding · simplicity first · surgical changes · goal-driven |
