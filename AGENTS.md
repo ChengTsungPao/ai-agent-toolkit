@@ -62,7 +62,7 @@ content it distributes or notes.
 | path | what it's for | you edit it to… |
 |---|---|---|
 | `manifest.toml` | the declaration — 4 sections + decision table | add/change/remove any tool, skill, plugin, or the guidelines pointer |
-| `scripts/` | the engine (`setup.py`, stdlib-only, py3.11+, run via `uv`) + the fresh-machine bootstrap (`install.sh` / `.ps1`) | add a new *kind* of thing or a subcommand — never for a new entry |
+| `scripts/` | the engine — `setup.py` (the orchestrator), `_common.py` (constants + ANSI + `run()`, the shared kernel), `_statusline.py` (the one extracted subcommand); all stdlib-only, py3.11+, run via `uv` — plus the fresh-machine bootstrap (`install.sh` / `.ps1`) | add a new *kind* of thing or a subcommand — never for a new entry |
 | `guidelines/` | the behavioural rules **distributed to** every machine (`AGENTS.md` = the rules; `CLAUDE.md` = a stub for other repos). Not this file. | change the always-on rules |
 | `skills/` | the user's **own** skill bundles, copied verbatim to each harness (`skills/README.md` = format) | add one of the user's own skills |
 | `harnesses/` | per-harness reference: what `wire <name>` does + manual steps | when a harness's wiring changes |
@@ -86,7 +86,12 @@ config` creates it; it can't be committed (it's in `$HOME`).
    when `usage.short` already says enough.
 
 `setup.py` itself changes only for a whole new *kind* of thing or a new
-subcommand — and stays stdlib-only, Python 3.11+.
+subcommand — and stays stdlib-only, Python 3.11+. It is the single orchestrator:
+`cmd_*` functions plus thin cores (`_install`, `_wire`) they and `bootstrap`
+share. Shared constants / ANSI / `run()` live in `_common.py`; a subcommand only
+moves into its own `scripts/_<name>.py` when it is genuinely separable (touches a
+different config surface, pairs with a `contrib/` dir) — `_statusline.py` is the
+precedent, don't split further without reason.
 
 A **harness tweak that isn't a tool/skill/plugin/MCP** (something that edits a
 harness's own config, not the manifest) goes in `contrib/<name>/` with its own

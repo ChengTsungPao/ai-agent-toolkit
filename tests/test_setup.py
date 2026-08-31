@@ -7,14 +7,28 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-SETUP = REPO / "scripts" / "setup.py"
+SCRIPTS = REPO / "scripts"
+SETUP = SCRIPTS / "setup.py"
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
 
 
 def load():
+    # reload the kernel first so a test's monkeypatched AI_DEV_ENV_HOME reaches
+    # the CONFIG path constant (evaluated at _common import time)
+    for name in ("_common", "_statusline"):
+        if name in sys.modules:
+            importlib.reload(sys.modules[name])
     spec = importlib.util.spec_from_file_location("setup_mod", SETUP)
     m = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(m)
     return m
+
+
+def load_statusline():
+    import _statusline
+
+    return _statusline
 
 
 def test_imports():
@@ -123,11 +137,45 @@ def test_schema_version_matches_manifest():
     assert m.load_manifest()["schema_version"] == m.SCHEMA_VERSION
 
 
-def test_statusline_command_needs_no_bash(monkeypatch):
-    m = load()
-    cmd = m._statusline_command()
+def test_statusline_command_needs_no_bash():
+    cmd = load_statusline()._statusline_command()
     assert "wrapper.py" in cmd
     assert "bash" not in cmd and ".sh" not in cmd
+
+
+def test_common_kernel_importable_and_shared():
+    import _common
+
+    assert _common.REPO == REPO
+    assert callable(_common.run) and callable(_common.green)
+    assert load().run is _common.run  # setup.py re-exports the kernel's helpers
+
+
+def test_bootstrap_runs_install_then_wire_per_detected_harness(monkeypatch):
+    import argparse
+
+    m = load()
+    calls = []
+    monkeypatch.setattr(m, "_first_run_gate", lambda: None)
+    monkeypatch.setattr(m, "_install", lambda ids, mode: calls.append(("install", tuple(ids), mode)) or 0)
+    monkeypatch.setattr(m, "_wire", lambda h: calls.append(("wire", h)) or 0)
+    monkeypatch.setattr(m, "_detected_harnesses", lambda: ["claude-code", "codex"])
+    monkeypatch.setattr(m, "all_required_env", dict)
+    m.cmd_bootstrap(argparse.Namespace(mode="all", keep_going=False))
+    assert calls == [("install", (), "all"), ("wire", "claude-code"), ("wire", "codex")]
+
+
+def test_bootstrap_stops_before_wiring_when_install_fails(monkeypatch):
+    import argparse
+
+    m = load()
+    wired = []
+    monkeypatch.setattr(m, "_first_run_gate", lambda: None)
+    monkeypatch.setattr(m, "_install", lambda ids, mode: 1)
+    monkeypatch.setattr(m, "_wire", lambda h: wired.append(h))
+    monkeypatch.setattr(m, "_detected_harnesses", lambda: ["claude-code"])
+    rc = m.cmd_bootstrap(argparse.Namespace(mode="all", keep_going=False))
+    assert rc == 1 and wired == []
 
 
 def test_strip_block_removes_only_the_marked_region(tmp_path):

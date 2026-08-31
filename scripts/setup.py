@@ -50,37 +50,22 @@ import tempfile
 import tomllib
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
-MANIFEST = REPO / "manifest.toml"
-SKILLS_DIR = REPO / "skills"
-CONFIG = Path(os.environ.get("AI_DEV_ENV_HOME") or Path.home() / ".ai-dev-env") / "config.toml"
-
-OS = {"Windows": "windows", "Darwin": "macos", "Linux": "linux"}.get(platform.system(), "linux")
-IS_WINDOWS = OS == "windows"
-
-if IS_WINDOWS:
-    os.system("")  # enable ANSI escape processing in the Windows console
-# The output uses box-drawing / bullet glyphs; force UTF-8 so it survives a
-# non-UTF-8 Windows console or a redirected pipe (cp1252 would raise).
-for _stream in (sys.stdout, sys.stderr):
-    try:
-        _stream.reconfigure(encoding="utf-8", errors="replace")
-    except (AttributeError, ValueError):
-        pass
-
-
-# ── ansi ────────────────────────────────────────────────────────────────────
-def _c(code: str, s: str) -> str:
-    if os.environ.get("NO_COLOR") or not sys.stdout.isatty():
-        return s
-    return f"\033[{code}m{s}\033[0m"
-
-
-bold = lambda s: _c("1", s)
-green = lambda s: _c("32", s)
-red = lambda s: _c("31", s)
-yellow = lambda s: _c("33", s)
-dim = lambda s: _c("2", s)
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # sibling modules resolve however this is loaded
+from _common import (  # noqa: E402  (must follow the sys.path line above)
+    CONFIG,
+    IS_WINDOWS,
+    MANIFEST,
+    OS,
+    REPO,
+    SKILLS_DIR,
+    bold,
+    dim,
+    green,
+    red,
+    run,
+    yellow,
+)
+from _statusline import cmd_statusline  # noqa: E402  (kept here so setup.py stays the only orchestrator)
 
 
 # ── manifest ────────────────────────────────────────────────────────────────
@@ -301,11 +286,6 @@ def version_of(tool: dict) -> str:
         return ""
 
 
-def run(cmd: str, display: str | None = None, **kw) -> int:
-    print(dim(f"  $ {display if display is not None else cmd}"))
-    return subprocess.run(cmd, shell=True, **kw).returncode
-
-
 # ── report ─────────────────────────────────────────────────────────────────
 def _section(title: str) -> None:
     print(f"\n{bold(title)}\n{dim('─' * len(title))}")
@@ -411,16 +391,20 @@ def _persist_env(key: str, value: str) -> None:
 
 
 def cmd_install(args) -> int:
+    return _install(args.tools, args.mode)
+
+
+def _install(explicit_ids: list[str], mode: str | None) -> int:
     _first_run_gate()
     tools = load_tools()
     skip = skipped_ids()
     # explicit `install <id>` overrides the skip list; a bare run honours it
-    wanted = set(args.tools) if args.tools else {t["id"] for t in tools} - skip
+    wanted = set(explicit_ids) if explicit_ids else {t["id"] for t in tools} - skip
     missing = [t for t in tools if t["id"] in wanted and not is_installed(t)]
     todo = [t for t in missing if install_cmd(t)]
     manual = [t for t in missing if not install_cmd(t)]
     already = [t["id"] for t in tools if t["id"] in wanted and is_installed(t)]
-    left_out = sorted({t["id"] for t in tools} & skip - set(args.tools or []))
+    left_out = sorted({t["id"] for t in tools} & skip - set(explicit_ids or []))
 
     if already:
         print(dim(f"already installed: {', '.join(already)}"))
@@ -443,7 +427,6 @@ def cmd_install(args) -> int:
             print(dim(f"      env: {', '.join(f'{k}={v}' for k, v in t['env'].items())}"))
     print()
 
-    mode = args.mode
     if not mode:
         ans = input("install [a]ll, confirm [e]ach, or [c]ancel? ").strip().lower()
         mode = {"a": "all", "all": "all", "e": "each", "c": "cancel"}.get(ans, "cancel")
@@ -822,15 +805,19 @@ def cmd_choose(_args) -> int:
 
 
 def cmd_wire(args) -> int:
-    fn = WIRERS.get(args.harness)
+    return _wire(args.harness)
+
+
+def _wire(harness: str) -> int:
+    fn = WIRERS.get(harness)
     if not fn:
-        print(red(f"unknown harness '{args.harness}'. choices: {', '.join(WIRERS)}"))
+        print(red(f"unknown harness '{harness}'. choices: {', '.join(WIRERS)}"))
         return 2
     _first_run_gate()
-    print(bold(f"\nwiring ai-dev-env into {args.harness}\n"))
+    print(bold(f"\nwiring ai-dev-env into {harness}\n"))
     rc = fn(load_tools())
-    _install_guidelines(args.harness)
-    _install_plugins(args.harness)
+    _install_guidelines(harness)
+    _install_plugins(harness)
     return rc
 
 
@@ -845,7 +832,7 @@ def cmd_bootstrap(args) -> int:
     print(bold("\nai-dev-env bootstrap\n"))
     _first_run_gate()
 
-    rc = cmd_install(argparse.Namespace(tools=[], mode=args.mode))
+    rc = _install([], args.mode)
     if rc != 0 and not args.keep_going:
         print(red("\ninstall reported errors — fix them, or re-run with --keep-going. Not wiring."))
         return rc
@@ -854,7 +841,7 @@ def cmd_bootstrap(args) -> int:
     if not harnesses:
         print(yellow("\nno harness CLI on PATH (claude / codex) — install one, then: setup.py wire <harness>"))
     for h in harnesses:
-        cmd_wire(argparse.Namespace(harness=h))
+        _wire(h)
 
     need = [k for k in all_required_env() if k not in config_env()]
     if need:
@@ -993,100 +980,8 @@ def cmd_skills(args) -> int:
 
 
 # ── statusline ─────────────────────────────────────────────────────────────
-STATUSLINE_DIR = Path.home() / ".claude" / "ai-dev-env-statusline"
-_CLAUDE_SETTINGS = Path.home() / ".claude" / "settings.json"
-
-
-def _load_claude_settings() -> dict:
-    if not _CLAUDE_SETTINGS.exists():
-        return {}
-    import json
-
-    try:
-        return json.loads(_CLAUDE_SETTINGS.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-
-
-def _save_claude_settings(d: dict) -> None:
-    import json
-
-    _CLAUDE_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
-    _CLAUDE_SETTINGS.write_text(json.dumps(d, indent=2) + "\n", encoding="utf-8")
-
-
-def _statusline_python() -> str:
-    """A stable interpreter prefix for wrapper.py — quoted, ready to prepend.
-
-    Prefers `uv` (the one guaranteed prerequisite, at an absolute path) so the
-    baked command doesn't depend on a transient venv or PATH ordering. Falls
-    back to a *validated* system Python — Windows' `WindowsApps\\python3.exe` is
-    a Store stub that resolves on PATH but is not a working interpreter."""
-    uv = shutil.which("uv")
-    if uv:
-        return f'"{uv}" run --python 3.12 --no-project'
-    for c in ("python3", "python"):
-        p = shutil.which(c)
-        if not p:
-            continue
-        try:
-            r = subprocess.run([p, "--version"], capture_output=True, text=True, timeout=5)
-        except (OSError, subprocess.SubprocessError):
-            continue
-        if r.returncode == 0 and (r.stdout + r.stderr).startswith("Python "):
-            return f'"{p}"'
-    return "python"
-
-
-def _statusline_command() -> str:
-    return f'{_statusline_python()} "{STATUSLINE_DIR / "wrapper.py"}"'
-
-
-def cmd_statusline(args) -> int:
-    settings = _load_claude_settings()
-    prev_file = STATUSLINE_DIR / "statusline-prev.txt"
-
-    if args.off:
-        prev = prev_file.read_text(encoding="utf-8").strip() if prev_file.exists() else ""
-        if prev:
-            settings["statusLine"] = {"type": "command", "command": prev}
-            print(dim(f"restored previous statusLine: {prev[:60]}…"))
-        else:
-            settings.pop("statusLine", None)
-            print(dim("removed statusLine"))
-        _save_claude_settings(settings)
-        shutil.rmtree(STATUSLINE_DIR, ignore_errors=True)
-        print(green("statusline off"))
-        return 0
-
-    src = REPO / "contrib" / "statusline"
-    STATUSLINE_DIR.mkdir(parents=True, exist_ok=True)
-    for name in ("wrapper.py", "ctx.py"):
-        dst = STATUSLINE_DIR / name
-        shutil.copy2(src / name, dst)
-        try:
-            dst.chmod(0o755)
-        except OSError:
-            pass
-    # a stale statusline.sh from an older install would never be run again
-    (STATUSLINE_DIR / "statusline.sh").unlink(missing_ok=True)
-
-    cur = (settings.get("statusLine") or {}).get("command", "")
-    if "ai-dev-env-statusline" not in cur:
-        prev_file.write_text(cur, encoding="utf-8")  # empty if there was none
-        if cur:
-            print(dim(f"chaining to existing statusLine ({len(cur)} chars saved)"))
-    elif not prev_file.exists():
-        prev_file.write_text("", encoding="utf-8")
-
-    our_cmd = _statusline_command()
-    settings["statusLine"] = {"type": "command", "command": our_cmd}
-    _save_claude_settings(settings)
-    print(green(f"  statusline → {STATUSLINE_DIR}"))
-    print(green(f"  {_CLAUDE_SETTINGS} statusLine → {our_cmd}"))
-    print(dim("  shows ' | ctx NN%' at the bottom next turn (restart the session if not)"))
-    print(dim("  if a host (Orca) rewrites settings.json, re-run: setup.py statusline"))
-    return 0
+# `cmd_statusline` lives in scripts/_statusline.py (Claude-Code-specific, touches
+# ~/.claude/settings.json, pairs with contrib/statusline/). Imported at the top.
 
 
 # ── doctor ─────────────────────────────────────────────────────────────────
