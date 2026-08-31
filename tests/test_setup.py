@@ -84,6 +84,76 @@ def test_config_template_generates(tmp_path):
     assert "[skip]" in body
 
 
+def test_mcp_spec_applies_windows_override(monkeypatch):
+    m = load()
+    notion = next(t for t in m.load_tools() if t["id"] == "notion-mcp")
+    monkeypatch.setattr(m, "OS", "windows")
+    assert m.mcp_spec(notion) == ("cmd", ["/c", "notion-mcp-server"])
+    monkeypatch.setattr(m, "OS", "macos")
+    assert m.mcp_spec(notion)[0] == "notion-mcp-server"
+
+
+def test_install_cmd_resolves_per_os(monkeypatch):
+    m = load()
+    uv = next(t for t in m.load_tools() if t["id"] == "uv")
+    monkeypatch.setattr(m, "OS", "windows")
+    assert "irm" in m.install_cmd(uv)
+    monkeypatch.setattr(m, "OS", "macos")
+    assert "astral.sh/uv/install.sh" in m.install_cmd(uv)
+
+
+def test_upgrade_cmd_inference():
+    m = load()
+    by_id = {t["id"]: t for t in m.load_tools()}
+    assert m.upgrade_cmd(by_id["uv"]) == "uv self update"
+    assert m.upgrade_cmd(by_id["graphify"]) == "uv tool upgrade graphifyy"
+    assert m.upgrade_cmd(by_id["notion-mcp"]) == "npm install -g @notionhq/notion-mcp-server"
+    assert m.upgrade_cmd(by_id["node"]) is None  # nothing to upgrade — install-yourself
+
+
+def test_wire_targets_have_a_harness_doc():
+    m = load()
+    for h in m.WIRERS:
+        name = "generic-mcp" if h == "generic" else h
+        assert (REPO / "harnesses" / f"{name}.md").is_file(), h
+
+
+def test_schema_version_matches_manifest():
+    m = load()
+    assert m.load_manifest()["schema_version"] == m.SCHEMA_VERSION
+
+
+def test_statusline_command_needs_no_bash(monkeypatch):
+    m = load()
+    cmd = m._statusline_command()
+    assert "wrapper.py" in cmd
+    assert "bash" not in cmd and ".sh" not in cmd
+
+
+def test_strip_block_removes_only_the_marked_region(tmp_path):
+    m = load()
+    f = tmp_path / "CLAUDE.md"
+    f.write_text(f"# mine\n\nkeep this\n\n{m.GUIDE_BEGIN}\ngenerated\n{m.GUIDE_END}\n", encoding="utf-8")
+    assert m._strip_block(f) is True
+    body = f.read_text(encoding="utf-8")
+    assert "keep this" in body and "generated" not in body and m.GUIDE_BEGIN not in body
+    assert m._strip_block(f) is False  # idempotent — nothing left to strip
+
+
+def test_config_body_preserves_unmanaged_env_keys(tmp_path, monkeypatch):
+    monkeypatch.setenv("AI_DEV_ENV_HOME", str(tmp_path))
+    m = load()
+    (tmp_path / "config.toml").write_text(
+        '[env]\nMY_OWN_KEY = "hi"\n\n[skip]\nids = []\n\n[my_table]\nx = 1\n', encoding="utf-8"
+    )
+    body = m._config_body()
+    assert 'MY_OWN_KEY = "hi"' in body
+    assert "[my_table]" in body and "x = 1" in body
+    import tomllib
+
+    tomllib.loads(body)  # still valid TOML
+
+
 def test_skip_list_is_honoured(tmp_path, monkeypatch):
     (tmp_path / "config.toml").write_text('[env]\n\n[skip]\nids = ["chrome-devtools"]\n', encoding="utf-8")
 

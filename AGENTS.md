@@ -10,12 +10,13 @@ Also follow the behavioural rules in [`guidelines/AGENTS.md`](guidelines/AGENTS.
 ## Setup on a fresh machine
 
 ```sh
-git clone <this-repo> ~/ai-dev-env      # ~/ai-dev-env is canonical; any path works
-~/ai-dev-env/scripts/install.sh          # macOS/Linux   (install.ps1 on Windows)
-~/ai-dev-env/scripts/install.sh install  # install missing tools (asks: all vs each)
-~/ai-dev-env/scripts/install.sh wire claude-code
-~/ai-dev-env/scripts/install.sh wire codex
+git clone <this-repo> ~/ai-dev-env        # ~/ai-dev-env is canonical; any path works
+~/ai-dev-env/scripts/install.sh            # macOS/Linux   (install.ps1 on Windows)
+~/ai-dev-env/scripts/install.sh bootstrap  # install missing + wire every harness found
 ```
+
+`bootstrap` = `install` (asks all vs each) then `wire` for each of Claude Code /
+Codex whose CLI is on PATH. Run the steps individually when you need to.
 
 Only prerequisite is [uv](https://docs.astral.sh/uv/) — the bootstrap installs
 it if missing. `setup.py` always runs via `uv run --python 3.12`, so `tomllib`
@@ -38,10 +39,12 @@ Your **own** skills go as committed folders under `skills/<name>/` (with a
 `$CODEX_HOME/skills/`. Cursor has no skills dir — its paths are printed for
 manual wiring.
 
-`setup.py` commands: `report` (default, grouped status) · `install` · `config` ·
-`choose` · `statusline` · `wire <harness>` · `skills` · `plugins` · `guidelines` ·
-`doctor`. `wire` automates Claude Code and Codex fully; for Cursor / generic it
-prints the MCP JSON and skill paths to apply by hand.
+`setup.py` commands: `report` (default) · `bootstrap` · `install` · `upgrade` ·
+`config` · `choose` · `statusline` · `wire <harness>` · `unwire <harness>` ·
+`skills` · `plugins` · `guidelines` · `doctor`. `wire` automates Claude Code and
+Codex fully (including `graphify install`); for Cursor / generic it prints the
+MCP JSON and skill paths to apply by hand. `unwire` reverses `wire` (MCP + skill
+dirs + guidelines block) but never touches an installed CLI or the config.
 
 Gemini CLI and Google Antigravity are **not** wired by this repo (no reliable
 global config path known / not in active use). Add them to `WIRERS` if that

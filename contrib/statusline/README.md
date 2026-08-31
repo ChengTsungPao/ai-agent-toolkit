@@ -12,22 +12,26 @@ setup.py statusline --off   # remove, restore what was there before
 
 - `ctx.py` — reads the statusLine JSON on stdin, finds the newest `usage` record
   in `transcript_path`, prints the segment. Harness-agnostic; never raises.
-- `statusline.sh` — the wrapper Claude Code actually runs: it first runs
-  **whatever statusLine command was there before** (saved to
+- `wrapper.py` — what Claude Code actually runs. It first runs **whatever
+  statusLine command was configured before this one** (saved to
   `~/.claude/ai-dev-env-statusline/statusline-prev.txt` on install) so a host's
-  own hook keeps working, then appends the `ctx.py` segment.
+  own hook keeps working, then appends the `ctx.py` segment. Pure Python +
+  stdlib.
 
 `setup.py statusline` copies both into `~/.claude/ai-dev-env-statusline/` and
-points `~/.claude/settings.json` `statusLine` at the wrapper.
+sets `~/.claude/settings.json` `statusLine` to
+`<uv> run --python 3.12 --no-project "<…>/wrapper.py"` (an absolute `uv` path,
+so it doesn't depend on PATH ordering or a transient venv; falls back to a
+validated system `python` if `uv` is somehow absent).
 
 ## Requirements
 
-- **`bash`** — the installed command is `bash "$HOME/.claude/…/statusline.sh"`.
-  - macOS / Linux: always present.
-  - Windows: relies on the **Git Bash that Claude Code bundles / requires**
-    being on `PATH`. If `bash` cannot be resolved the statusLine silently shows
-    nothing. There is no `cmd` / PowerShell fallback.
-- A real **`python3` / `python`** on `PATH` (falls back to `uv run --python 3.12`).
+- **`uv`** (the repo's one prerequisite) or a real `python3` / `python` on PATH.
+  No shell is involved for a plain Claude Code install.
+- **`sh` or `bash`** — only when chaining to a previous command (e.g. under a
+  host like Orca). That command is POSIX `sh` syntax; on Windows this is the
+  Git Bash that such hosts already require. If neither resolves, only the
+  previous segment is skipped — the `ctx` segment still renders.
 
 ## Caveats
 
