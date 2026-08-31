@@ -87,14 +87,16 @@ def test_config_template_generates(tmp_path):
 def test_skip_list_is_honoured(tmp_path, monkeypatch):
     (tmp_path / "config.toml").write_text('[env]\n\n[skip]\nids = ["chrome-devtools"]\n', encoding="utf-8")
 
-    # subprocess: report marks it, install leaves it out
+    # subprocess (read-only): report marks the skipped item
     rep = _run(tmp_path, "report")
     assert "skipped (config [skip]): chrome-devtools" in rep.stdout
-    ins = _run(tmp_path, "install", "--all")
-    assert "chrome-devtools" not in ins.stdout.replace("skipped (config [skip]): chrome-devtools", "")
+    assert "⊘ skipped" in rep.stdout
 
-    # in-process: the filters exclude it
+    # in-process: the filters exclude it (no real installs triggered)
     monkeypatch.setenv("AI_DEV_ENV_HOME", str(tmp_path))
     m = load()
     assert "chrome-devtools" in m.skipped_ids()
     assert all(t["id"] != "chrome-devtools" for t in m._mcp_tools(m.load_tools()))
+    ids = [t["id"] for t in m.load_tools()]
+    wanted = set(ids) - m.skipped_ids()
+    assert "chrome-devtools" not in wanted
