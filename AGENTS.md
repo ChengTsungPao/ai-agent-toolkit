@@ -10,12 +10,13 @@ Also follow the behavioural rules in [`guidelines/AGENTS.md`](guidelines/AGENTS.
 ## Setup on a fresh machine
 
 ```sh
-git clone <this-repo> ~/ai-dev-env      # ~/ai-dev-env is canonical; any path works
-~/ai-dev-env/scripts/install.sh          # macOS/Linux   (install.ps1 on Windows)
-~/ai-dev-env/scripts/install.sh install  # install missing tools (asks: all vs each)
-~/ai-dev-env/scripts/install.sh wire claude-code
-~/ai-dev-env/scripts/install.sh wire codex
+git clone <this-repo> ~/ai-dev-env        # ~/ai-dev-env is canonical; any path works
+~/ai-dev-env/scripts/install.sh            # macOS/Linux   (install.ps1 on Windows)
+~/ai-dev-env/scripts/install.sh bootstrap  # install missing + wire every harness found
 ```
+
+`bootstrap` = `install` (asks all vs each) then `wire` for each of Claude Code /
+Codex whose CLI is on PATH. Run the steps individually when you need to.
 
 Only prerequisite is [uv](https://docs.astral.sh/uv/) — the bootstrap installs
 it if missing. `setup.py` always runs via `uv run --python 3.12`, so `tomllib`
@@ -38,10 +39,12 @@ Your **own** skills go as committed folders under `skills/<name>/` (with a
 `$CODEX_HOME/skills/`. Cursor has no skills dir — its paths are printed for
 manual wiring.
 
-`setup.py` commands: `report` (default, grouped status) · `install` · `config` ·
-`choose` · `statusline` · `wire <harness>` · `skills` · `plugins` · `guidelines` ·
-`doctor`. `wire` automates Claude Code and Codex fully; for Cursor / generic it
-prints the MCP JSON and skill paths to apply by hand.
+`setup.py` commands: `report` (default) · `bootstrap` · `install` · `upgrade` ·
+`config` · `choose` · `statusline` · `wire <harness>` · `unwire <harness>` ·
+`skills` · `plugins` · `guidelines` · `doctor`. `wire` automates Claude Code and
+Codex fully (including `graphify install`); for Cursor / generic it prints the
+MCP JSON and skill paths to apply by hand. `unwire` reverses `wire` (MCP + skill
+dirs + guidelines block) but never touches an installed CLI or the config.
 
 Gemini CLI and Google Antigravity are **not** wired by this repo (no reliable
 global config path known / not in active use). Add them to `WIRERS` if that
@@ -59,7 +62,7 @@ content it distributes or notes.
 | path | what it's for | you edit it to… |
 |---|---|---|
 | `manifest.toml` | the declaration — 4 sections + decision table | add/change/remove any tool, skill, plugin, or the guidelines pointer |
-| `scripts/` | the engine (`setup.py`, stdlib-only, py3.11+, run via `uv`) + the fresh-machine bootstrap (`install.sh` / `.ps1`) | add a new *kind* of thing or a subcommand — never for a new entry |
+| `scripts/` | the engine — `setup.py` (the orchestrator), `_common.py` (constants + ANSI + `run()`, the shared kernel), `_statusline.py` (the one extracted subcommand); all stdlib-only, py3.11+, run via `uv` — plus the fresh-machine bootstrap (`install.sh` / `.ps1`) | add a new *kind* of thing or a subcommand — never for a new entry |
 | `guidelines/` | the behavioural rules **distributed to** every machine (`AGENTS.md` = the rules; `CLAUDE.md` = a stub for other repos). Not this file. | change the always-on rules |
 | `skills/` | the user's **own** skill bundles, copied verbatim to each harness (`skills/README.md` = format) | add one of the user's own skills |
 | `harnesses/` | per-harness reference: what `wire <name>` does + manual steps | when a harness's wiring changes |
@@ -83,7 +86,12 @@ config` creates it; it can't be committed (it's in `$HOME`).
    when `usage.short` already says enough.
 
 `setup.py` itself changes only for a whole new *kind* of thing or a new
-subcommand — and stays stdlib-only, Python 3.11+.
+subcommand — and stays stdlib-only, Python 3.11+. It is the single orchestrator:
+`cmd_*` functions plus thin cores (`_install`, `_wire`) they and `bootstrap`
+share. Shared constants / ANSI / `run()` live in `_common.py`; a subcommand only
+moves into its own `scripts/_<name>.py` when it is genuinely separable (touches a
+different config surface, pairs with a `contrib/` dir) — `_statusline.py` is the
+precedent, don't split further without reason.
 
 A **harness tweak that isn't a tool/skill/plugin/MCP** (something that edits a
 harness's own config, not the manifest) goes in `contrib/<name>/` with its own

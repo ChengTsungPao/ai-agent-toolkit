@@ -43,6 +43,13 @@ registered but idle — `setup.py doctor` / `report` flag it. Fill it in, re-run
 `wire`, restart the harness. (An exported `NOTION_TOKEN` env var also works and
 takes second priority after the config file.)
 
+**How the token is passed:** `setup.py wire` runs `claude mcp add … -e
+NOTION_TOKEN=<value> …` (terminal output masks it as `***`). The value is then
+stored by the harness in its own config (`~/.claude.json` / Codex
+`config.toml`), and is briefly visible in the process list while `mcp add`
+runs. On a personal single-user machine that's fine; on a shared host, prefer a
+read-only integration token and treat the harness config as a secret file.
+
 ## Requirements
 
 Node.js + npm. (`npx -y @notionhq/notion-mcp-server` also works in principle but

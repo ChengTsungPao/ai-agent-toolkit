@@ -12,19 +12,20 @@ Fresh machine = clone + one script.
 ```bash
 # macOS / Linux
 git clone https://github.com/ChengTsungPao/ai-dev-env ~/ai-dev-env
-~/ai-dev-env/scripts/install.sh                 # report: what's installed + how to use it
-~/ai-dev-env/scripts/install.sh install         # install missing (asks: all vs confirm-each)
-~/ai-dev-env/scripts/install.sh wire claude-code
-~/ai-dev-env/scripts/install.sh wire codex
+~/ai-dev-env/scripts/install.sh              # report: what's installed + how to use it
+~/ai-dev-env/scripts/install.sh bootstrap    # install missing + wire every harness found
 ```
 
 ```powershell
 # Windows
 git clone https://github.com/ChengTsungPao/ai-dev-env $HOME\ai-dev-env
 & $HOME\ai-dev-env\scripts\install.ps1
-& $HOME\ai-dev-env\scripts\install.ps1 install
-& $HOME\ai-dev-env\scripts\install.ps1 wire codex
+& $HOME\ai-dev-env\scripts\install.ps1 bootstrap
 ```
+
+`bootstrap` asks *all vs confirm-each*, installs, then wires Claude Code / Codex
+if their CLI is present. Or drive the steps yourself: `install` → `wire
+<harness>`. Fill any secrets into `~/.ai-dev-env/config.toml` and re-run `wire`.
 
 Only prerequisite is [uv](https://docs.astral.sh/uv/) — the bootstrap installs
 it, then runs everything on a pinned Python.
@@ -63,11 +64,14 @@ everything, or choose what to skip?"*. Change the picks any time with
 
 ```
 setup.py report              # grouped status: MCP servers / CLI tools / Skills / Plugins / Guidelines
+setup.py bootstrap [--all|--each]   # install everything + wire every harness found
 setup.py install [ids] [--all|--each]
+setup.py upgrade [ids]       # uv tool upgrade / npm / installer + re-pull [[skill]] latest
 setup.py config              # create/show ~/.ai-dev-env/config.toml
 setup.py choose              # pick which items to skip
 setup.py statusline [--off]  # add a 'ctx NN%' segment to the Claude Code statusLine (contrib/statusline/)
-setup.py wire <claude-code|codex|cursor|generic>   # MCP + skills + guidelines + plugins
+setup.py wire   <claude-code|codex|cursor|generic>   # MCP + skills + guidelines + plugins
+setup.py unwire <claude-code|codex|cursor|generic>   # reverse of wire (keeps CLIs + config)
 setup.py skills | plugins | guidelines [harness]              # one group only
 setup.py doctor
 ```
