@@ -1,5 +1,6 @@
 """setup.py loads, its helpers behave, and `report` runs anywhere."""
 
+import argparse
 import importlib.util
 import os
 import subprocess
@@ -152,8 +153,6 @@ def test_common_kernel_importable_and_shared():
 
 
 def test_bootstrap_runs_install_then_wire_per_detected_harness(monkeypatch):
-    import argparse
-
     m = load()
     calls = []
     monkeypatch.setattr(m, "_first_run_gate", lambda: None)
@@ -166,8 +165,6 @@ def test_bootstrap_runs_install_then_wire_per_detected_harness(monkeypatch):
 
 
 def test_bootstrap_stops_before_wiring_when_install_fails(monkeypatch):
-    import argparse
-
     m = load()
     wired = []
     monkeypatch.setattr(m, "_first_run_gate", lambda: None)
@@ -176,6 +173,105 @@ def test_bootstrap_stops_before_wiring_when_install_fails(monkeypatch):
     monkeypatch.setattr(m, "_detected_harnesses", lambda: ["claude-code"])
     rc = m.cmd_bootstrap(argparse.Namespace(mode="all", keep_going=False))
     assert rc == 1 and wired == []
+
+
+# ── upgrade / unwire orchestration ─────────────────────────────────────────
+def test_upgrade_runs_the_upgrade_command_for_each_installed_tool(monkeypatch):
+    m = load()
+    monkeypatch.setattr(
+        m,
+        "load_tools",
+        lambda: [
+            {"id": "uv", "name": "uv"},
+            {"id": "np", "name": "Np", "install": {"default": "npm install -g np"}},
+            {"id": "gone", "name": "Gone"},
+        ],
+    )
+    monkeypatch.setattr(m, "skipped_ids", set)
+    monkeypatch.setattr(m, "is_installed", lambda t: t["id"] != "gone")
+    monkeypatch.setattr(m, "version_of", lambda t: "1.0")
+    monkeypatch.setattr(m, "ext_skills", list)
+    monkeypatch.setattr(m, "bundled_skills", list)
+    ran = []
+    monkeypatch.setattr(m, "run", lambda cmd, **kw: ran.append(cmd) or 0)
+    rc = m.cmd_upgrade(argparse.Namespace(tools=[]))
+    assert rc == 0
+    assert ran == ["uv self update", "npm install -g np"]  # 'gone' not installed → not touched
+
+
+def test_upgrade_skips_no_path_tools_and_reports_failure(monkeypatch):
+    m = load()
+    monkeypatch.setattr(m, "load_tools", lambda: [{"id": "no", "name": "NoPath"}, {"id": "uv", "name": "uv"}])
+    monkeypatch.setattr(m, "skipped_ids", set)
+    monkeypatch.setattr(m, "is_installed", lambda t: True)
+    monkeypatch.setattr(m, "version_of", lambda t: "x")
+    monkeypatch.setattr(m, "ext_skills", list)
+    monkeypatch.setattr(m, "bundled_skills", list)
+    ran = []
+    monkeypatch.setattr(m, "run", lambda cmd, **kw: ran.append(cmd) or 1)  # every upgrade "fails"
+    rc = m.cmd_upgrade(argparse.Namespace(tools=["no", "uv"]))
+    assert ran == ["uv self update"]  # 'no' has no upgrade path → skipped, not run
+    assert rc == 1  # uv's non-zero return propagates
+
+
+def test_upgrade_refreshes_skills_only_without_explicit_ids(monkeypatch):
+    m = load()
+    monkeypatch.setattr(m, "load_tools", list)
+    monkeypatch.setattr(m, "skipped_ids", set)
+    monkeypatch.setattr(m, "ext_skills", lambda: [{"id": "grill", "repo": "https://x/y", "paths": ["p"]}])
+    monkeypatch.setattr(m, "bundled_skills", list)
+    monkeypatch.setattr(m.shutil, "which", lambda _name: "/usr/bin/x")  # both harness CLIs "present"
+    refreshed = []
+    monkeypatch.setattr(m, "_install_skills", lambda d: refreshed.append(d))
+    m.cmd_upgrade(argparse.Namespace(tools=[]))
+    assert len(refreshed) == 2  # ~/.claude/skills + $CODEX_HOME/skills
+    refreshed.clear()
+    m.cmd_upgrade(argparse.Namespace(tools=["grill"]))
+    assert refreshed == []  # explicit ids → no skills refresh
+
+
+def _unwire_recorders(monkeypatch, m):
+    ran, stripped, removed = [], [], []
+    monkeypatch.setattr(
+        m,
+        "load_tools",
+        lambda: [{"id": "aa", "mcp": {"command": "x"}}, {"id": "bb", "mcp": {"command": "y"}}, {"id": "cc"}],
+    )
+    monkeypatch.setattr(m, "bundled_skills", list)
+    monkeypatch.setattr(m, "ext_skills", list)
+    monkeypatch.setattr(m.subprocess, "run", lambda cmd, **kw: ran.append(cmd))
+    monkeypatch.setattr(m, "_strip_block", lambda p: stripped.append(p.name) or True)
+    monkeypatch.setattr(m.shutil, "rmtree", lambda p, **kw: removed.append(p))
+    return ran, stripped, removed
+
+
+def test_unwire_claude_code_removes_mcp_then_guidelines(monkeypatch):
+    m = load()
+    ran, stripped, _ = _unwire_recorders(monkeypatch, m)
+    rc = m.cmd_unwire(argparse.Namespace(harness="claude-code"))
+    assert rc == 0
+    assert ran == ["claude mcp remove aa -s user", "claude mcp remove bb -s user"]  # 'cc' has no mcp
+    assert stripped == ["AGENTS.md", "CLAUDE.md"]
+
+
+def test_unwire_codex_uses_codex_remove_and_spares_claude_md(monkeypatch):
+    m = load()
+    ran, stripped, _ = _unwire_recorders(monkeypatch, m)
+    rc = m.cmd_unwire(argparse.Namespace(harness="codex"))
+    assert rc == 0
+    assert ran == ["codex mcp remove aa", "codex mcp remove bb"]
+    assert stripped == ["AGENTS.md"]  # codex has no CLAUDE.md
+
+
+def test_unwire_cursor_touches_nothing(monkeypatch):
+    m = load()
+    ran, stripped, removed = _unwire_recorders(monkeypatch, m)
+    rc = m.cmd_unwire(argparse.Namespace(harness="cursor"))
+    assert rc == 0 and ran == [] and stripped == [] and removed == []
+
+
+def test_unwire_unknown_harness_returns_2():
+    assert load().cmd_unwire(argparse.Namespace(harness="bogus")) == 2
 
 
 def test_strip_block_removes_only_the_marked_region(tmp_path):
