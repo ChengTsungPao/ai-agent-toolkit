@@ -124,6 +124,7 @@ def test_upgrade_cmd_inference():
     assert m.upgrade_cmd(by_id["graphify"]) == "uv tool upgrade graphifyy"
     assert m.upgrade_cmd(by_id["notion-mcp"]) == "npm install -g @notionhq/notion-mcp-server"
     assert m.upgrade_cmd(by_id["node"]) is None  # nothing to upgrade — install-yourself
+    assert m.upgrade_cmd(by_id["codegraph"]) is None  # web installer — never auto-run (see upgrade_cmd docstring)
 
 
 def test_wire_targets_have_a_harness_doc():
@@ -197,6 +198,32 @@ def test_upgrade_runs_the_upgrade_command_for_each_installed_tool(monkeypatch):
     rc = m.cmd_upgrade(argparse.Namespace(tools=[]))
     assert rc == 0
     assert ran == ["uv self update", "npm install -g np"]  # 'gone' not installed → not touched
+
+
+def test_upgrade_refreshes_graphify_skill_only_when_its_version_changed(monkeypatch):
+    m = load()
+    monkeypatch.setattr(
+        m,
+        "load_tools",
+        lambda: [{"id": "graphify", "name": "graphify", "install": {"default": "uv tool install graphifyy"}}],
+    )
+    monkeypatch.setattr(m, "skipped_ids", set)
+    monkeypatch.setattr(m, "is_installed", lambda t: True)
+    monkeypatch.setattr(m, "run", lambda cmd, **kw: 0)
+    monkeypatch.setattr(m, "ext_skills", list)
+    monkeypatch.setattr(m, "bundled_skills", list)
+    monkeypatch.setattr(m, "_detected_harnesses", lambda: ["claude-code"])
+    refreshed = []
+    monkeypatch.setattr(m, "_install_graphify_skill", lambda h: refreshed.append(h))
+
+    monkeypatch.setattr(m, "version_of", lambda t: "0.9.51")  # before == after
+    m.cmd_upgrade(argparse.Namespace(tools=["graphify"]))
+    assert refreshed == []
+
+    versions = iter(["0.9.51", "0.9.53"])
+    monkeypatch.setattr(m, "version_of", lambda t: next(versions))
+    m.cmd_upgrade(argparse.Namespace(tools=["graphify"]))
+    assert refreshed == ["claude-code"]
 
 
 def test_upgrade_skips_no_path_tools_and_reports_failure(monkeypatch):

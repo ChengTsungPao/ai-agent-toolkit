@@ -853,7 +853,12 @@ def cmd_bootstrap(args) -> int:
 
 # ── upgrade ────────────────────────────────────────────────────────────────
 def upgrade_cmd(t: dict) -> str | None:
-    """How to upgrade a tool: explicit [tool.upgrade], else inferred from install."""
+    """How to upgrade a tool: explicit [tool.upgrade], else inferred from install.
+
+    Web installers (`curl … | sh`, `irm … | iex`) are deliberately NOT inferred:
+    re-running one mid-session can partially delete a running native binary on
+    Windows (codegraph's `.node` kernel gets file-locked by its MCP servers).
+    Such tools need an explicit `[tool.upgrade]` or a manual re-install."""
     up = t.get("upgrade", {})
     if up.get(OS) or up.get("default"):
         return up.get(OS) or up.get("default")
@@ -864,8 +869,6 @@ def upgrade_cmd(t: dict) -> str | None:
         return f"uv tool upgrade {t.get('pypi') or t['id']}"
     if "npm install -g" in ins:
         return ins  # re-running `npm install -g <pkg>` pulls the latest
-    if "| sh" in ins or "| iex" in ins:
-        return ins  # these one-line installers double as upgraders
     return None
 
 
@@ -875,10 +878,11 @@ def cmd_upgrade(args) -> int:
     targets = [t for t in tools if t["id"] in wanted and is_installed(t)]
     print(bold("\nupgrading installed tools\n"))
     rc = 0
+    changed: set[str] = set()
     for t in targets:
         cmd = upgrade_cmd(t)
         if not cmd:
-            print(dim(f"  {t['name']}: no known upgrade path — skip"))
+            print(dim(f"  {t['name']}: no managed upgrade — re-run its installer by hand (see docs/)"))
             continue
         before = version_of(t)
         if run(cmd) != 0:
@@ -886,8 +890,13 @@ def cmd_upgrade(args) -> int:
             rc = 1
             continue
         after = version_of(t)
+        if before != after:
+            changed.add(t["id"])
         delta = "unchanged" if before == after else f"{before or '?'} -> {after or '?'}"
         print(green(f"  {t['name']}: {delta}"))
+    if "graphify" in changed:  # graphify's skill is versioned with its binary
+        for h in _detected_harnesses():
+            _install_graphify_skill(h)
     if not args.tools and (ext_skills() or bundled_skills()):
         print(bold("\nrefreshing skills ([[skill]] re-cloned = their upgrade)\n"))
         for h, d in (("claude", Path.home() / ".claude" / "skills"), ("codex", _codex_home() / "skills")):

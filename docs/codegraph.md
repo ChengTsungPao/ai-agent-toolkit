@@ -60,6 +60,18 @@ codegraph affected <files...>   # test files hit by a change
 codegraph status
 ```
 
+## Upgrading
+
+`setup.py upgrade` **does not** touch CodeGraph — its only upgrade path is
+re-running the web installer, and on Windows that partially deletes the running
+install: `install.ps1` does `Remove-Item -Recurse -Force` on `codegraph/current`,
+but the `.node` kernel is file-locked by every `codegraph serve --mcp` the agents
+have spawned, so the delete half-completes and then fails.
+
+To upgrade by hand: close every agent/session using CodeGraph (or
+`Stop-Process` the `codegraph/current/node.exe` processes), then re-run the
+installer from `manifest.toml`. `setup.py doctor` afterwards to confirm.
+
 ## Uninstall
 
 ```
