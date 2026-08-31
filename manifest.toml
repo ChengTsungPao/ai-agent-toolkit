@@ -54,6 +54,22 @@ windows = "powershell -ExecutionPolicy Bypass -c \"irm https://astral.sh/uv/inst
 [tool.usage]
 short = "uv tool install <pkg> · uv tool upgrade --all · uv run --python 3.12 script.py"
 
+# ---- Node.js --------------------------------------------------- prerequisite
+# NOT auto-installed — there is no single reliable one-liner across macOS /
+# Windows / Linux, and a version manager is a personal choice. Only the
+# npm-distributed MCP servers below need it (notion-mcp, chrome-devtools).
+# `report` / `doctor` flag it if missing; install it yourself, then re-run
+# `setup.py install`.
+[[tool]]
+id      = "node"
+name    = "Node.js"
+kind    = "prerequisite"
+purpose = "JavaScript runtime + npm. Required only by the npm-distributed MCP servers here (Notion MCP, Chrome DevTools MCP), which are installed with `npm install -g`. Nothing else in this repo depends on it."
+verify  = "node --version"
+docs    = "docs/node.md"
+[tool.usage]
+short = "Install Node LTS from https://nodejs.org or a manager: macOS `brew install node` · Windows `winget install OpenJS.NodeJS.LTS` · nvm / fnm / volta. Then: setup.py install notion-mcp chrome-devtools"
+
 # ---- Basic Memory ------------------------------------------------- cli + mcp
 [[tool]]
 id      = "basic-memory"

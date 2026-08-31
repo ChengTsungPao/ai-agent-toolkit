@@ -20,6 +20,15 @@ setup.py statusline --off   # remove, restore what was there before
 `setup.py statusline` copies both into `~/.claude/ai-dev-env-statusline/` and
 points `~/.claude/settings.json` `statusLine` at the wrapper.
 
+## Requirements
+
+- **`bash`** — the installed command is `bash "$HOME/.claude/…/statusline.sh"`.
+  - macOS / Linux: always present.
+  - Windows: relies on the **Git Bash that Claude Code bundles / requires**
+    being on `PATH`. If `bash` cannot be resolved the statusLine silently shows
+    nothing. There is no `cmd` / PowerShell fallback.
+- A real **`python3` / `python`** on `PATH` (falls back to `uv run --python 3.12`).
+
 ## Caveats
 
 - **Orca** owns the statusLine slot as a data pipe and may **rewrite
@@ -27,4 +36,3 @@ points `~/.claude/settings.json` `statusLine` at the wrapper.
 - **macOS**: works on plain Claude Code. macOS + Orca is **untested** (whether
   Orca passes Claude Code's statusLine through).
 - The number is the context size *at the start of the last turn* — lags by one.
-- Needs a real `python3` / `python` on PATH (falls back to `uv run`).
