@@ -30,6 +30,8 @@ def test_tool_wellformed(t):
         assert key in t, f"missing {key}"
     assert t["kind"] in KINDS, f"bad kind {t['kind']!r}"
     ins = t.get("install", {})
+    if t["kind"] == "prerequisite" and not ins:
+        return  # a prerequisite may be install-yourself (e.g. node); report/doctor still flag it
     assert ins, "no [tool.install]"
     assert "default" in ins or {"macos", "linux", "windows"} & ins.keys(), "no install command for any OS"
 

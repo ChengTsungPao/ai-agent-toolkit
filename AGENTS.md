@@ -94,13 +94,14 @@ uv run --python 3.12 --with ruff ruff format scripts tests
 
 `tests/` needs no repo dependency — pytest and ruff are fetched on demand.
 `.pre-commit-config.yaml` runs ruff + pytest on commit (`pre-commit install` once).
-`.github/workflows/ci.yml` runs lint (Linux) + tests (Linux **and** Windows) on
-push/PR.
+`.github/workflows/ci.yml` runs lint (Linux) + tests (Linux, Windows **and**
+macOS) on push/PR.
 
 **Free-tier CI note:** this is a private repo on the Free plan (2,000
-Linux-minutes/month; Windows drains 2×). If a CI check shows a *billing / quota /
-spending-limit* message instead of test results, that's the monthly limit — **not
-a code failure**. The local commands above are the source of truth; re-run them
+Linux-minutes/month; Windows drains 2×, macOS 10× — the jobs run in seconds, so
+this stays cheap). If a CI check shows a *billing / quota / spending-limit*
+message instead of test results, that's the monthly limit — **not a code
+failure**. The local commands above are the source of truth; re-run them
 and say so on the PR.
 
 ## Invariants — don't break these

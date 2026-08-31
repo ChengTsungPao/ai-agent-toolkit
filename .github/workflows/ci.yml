@@ -6,7 +6,8 @@
 #      uv run --python 3.12 --with pytest pytest
 #      uv run --python 3.12 --with ruff ruff check scripts tests
 #
-#  (private repo, Free plan: 2,000 Linux-min/month; Windows drains 2×.)
+#  (private repo, Free plan: 2,000 Linux-min/month; Windows drains 2×, macOS 10×.
+#   The jobs run in seconds, so the macOS multiplier costs very little.)
 # ─────────────────────────────────────────────────────────────────────────────
 name: CI
 
@@ -31,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
