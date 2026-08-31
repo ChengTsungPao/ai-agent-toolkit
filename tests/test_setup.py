@@ -143,6 +143,9 @@ def test_statusline_command_needs_no_bash():
     cmd = load_statusline()._statusline_command()
     assert "wrapper.py" in cmd
     assert "bash" not in cmd and ".sh" not in cmd
+    # must NOT start with a quote — cmd.exe /c strips a matched outer pair and a
+    # leading "C:\...exe" then becomes unbalanced (statusLine silently fails)
+    assert not cmd.startswith('"')
 
 
 def test_common_kernel_importable_and_shared():

@@ -34,29 +34,35 @@ def _save_claude_settings(d: dict) -> None:
 
 
 def _statusline_python() -> str:
-    """A stable interpreter prefix for wrapper.py — quoted, ready to prepend.
+    """An interpreter prefix for wrapper.py — a bare command name, ready to prepend.
 
-    Prefers `uv` (the one guaranteed prerequisite, at an absolute path) so the
-    baked command doesn't depend on a transient venv or PATH ordering. Falls
-    back to a *validated* system Python — Windows' `WindowsApps\\python3.exe` is
-    a Store stub that resolves on PATH but is not a working interpreter."""
-    uv = shutil.which("uv")
-    if uv:
-        return f'"{uv}" run --python 3.12 --no-project'
+    Must NOT be an absolute quoted path. Claude Code on Windows runs the
+    statusLine through `cmd.exe /c "<command>"`; when `<command>` both starts and
+    ends with a quote, cmd strips that outer pair, and a leading `"C:\\...exe"`
+    then becomes unbalanced → `The filename, directory name, or volume label
+    syntax is incorrect`, exit 1, no output. A bare name (like the `bash` the
+    previous implementation used) is resolved from PATH and sidesteps this.
+
+    Prefers `uv` (the repo's one prerequisite); falls back to a *validated*
+    system Python — Windows' `WindowsApps\\python3.exe` is a PATH stub that is
+    not a working interpreter."""
+    if shutil.which("uv"):
+        return "uv run --python 3.12 --no-project"
     for c in ("python3", "python"):
-        p = shutil.which(c)
-        if not p:
+        if not shutil.which(c):
             continue
         try:
-            r = subprocess.run([p, "--version"], capture_output=True, text=True, timeout=5)
+            r = subprocess.run([c, "--version"], capture_output=True, text=True, timeout=5)
         except (OSError, subprocess.SubprocessError):
             continue
         if r.returncode == 0 and (r.stdout + r.stderr).startswith("Python "):
-            return f'"{p}"'
+            return c
     return "python"
 
 
 def _statusline_command() -> str:
+    # wrapper.py is quoted (may contain spaces) but is never the leading token,
+    # so cmd.exe's outer-quote stripping can't unbalance it.
     return f'{_statusline_python()} "{STATUSLINE_DIR / "wrapper.py"}"'
 
 
