@@ -6,6 +6,7 @@
   (`CODEX_HOME` defaults to `~/.codex`; some managed setups override it —
   the script honours the env var)
 - `codex mcp add --env <K=V> <id> -- <command> <args>` for each MCP tool
+- `graphify install --platform codex` (if graphify is installed and not skipped)
 - guidelines: full text → `$CODEX_HOME/AGENTS.md` (marker-delimited block)
 
 ## Manual / verification
@@ -30,9 +31,7 @@ On Windows use the full path to `basic-memory.exe`
 
 ## graphify
 
-```bash
-graphify install --platform codex
-```
+`wire codex` runs `graphify install --platform codex` for you.
 
 Note: `graphify install` writes to `~/.codex/skills/graphify/` and ignores
 `$CODEX_HOME`. If your Codex runs with a non-default `CODEX_HOME` (e.g. a
@@ -45,7 +44,7 @@ cp -r ~/.codex/skills/graphify "$CODEX_HOME/skills/"
 ## Removing
 
 ```bash
-codex mcp remove basic-memory
-# skills: rm -rf "$CODEX_HOME/skills/<name>"
-# guidelines: delete the marked block in "$CODEX_HOME/AGENTS.md"
+setup.py unwire codex     # MCP servers + bundled/[[skill]] dirs + guidelines block
 ```
+
+Leaves installed CLIs and `~/.ai-dev-env/config.toml` alone.

@@ -1,11 +1,13 @@
 """contrib/statusline/ctx.py computes the context segment from a transcript."""
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-CTX = Path(__file__).resolve().parent.parent / "contrib" / "statusline" / "ctx.py"
+SL = Path(__file__).resolve().parent.parent / "contrib" / "statusline"
+CTX = SL / "ctx.py"
 
 
 def _run(payload: dict) -> str:
@@ -63,3 +65,42 @@ def test_bad_stdin_prints_nothing():
     r = subprocess.run([sys.executable, str(CTX)], input="not json", capture_output=True, text=True, timeout=30)
     assert r.returncode == 0
     assert r.stdout == ""
+
+
+def test_wrapper_runs_ctx_with_no_previous_command(tmp_path):
+    d = tmp_path / "sl"
+    d.mkdir()
+    for f in ("wrapper.py", "ctx.py"):
+        shutil.copy(SL / f, d / f)  # no statusline-prev.txt -> only ctx.py runs
+    t = tmp_path / "t.jsonl"
+    t.write_text(json.dumps({"message": {"usage": {"input_tokens": 100_000}}}), encoding="utf-8")
+    r = subprocess.run(
+        [sys.executable, str(d / "wrapper.py")],
+        input=json.dumps({"model": {"id": "claude-sonnet-5"}, "transcript_path": str(t)}),
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert r.returncode == 0, r.stderr
+    assert "ctx 10%" in r.stdout  # 100k / 1m
+
+
+def test_wrapper_survives_a_broken_previous_command(tmp_path):
+    if not shutil.which("sh"):
+        return  # the chain step needs sh; skip where it's absent
+    d = tmp_path / "sl"
+    d.mkdir()
+    for f in ("wrapper.py", "ctx.py"):
+        shutil.copy(SL / f, d / f)
+    (d / "statusline-prev.txt").write_text("nonexistent-cmd-xyz; exit 3", encoding="utf-8")
+    t = tmp_path / "t.jsonl"
+    t.write_text(json.dumps({"message": {"usage": {"input_tokens": 100_000}}}), encoding="utf-8")
+    r = subprocess.run(
+        [sys.executable, str(d / "wrapper.py")],
+        input=json.dumps({"model": {"id": "claude-sonnet-5"}, "transcript_path": str(t)}),
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert r.returncode == 0
+    assert "ctx 10%" in r.stdout  # ctx segment still emitted despite the broken prev

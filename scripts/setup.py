@@ -15,12 +15,16 @@ Subcommands
 -----------
 report            (default) grouped status: MCP servers / CLI tools / Skills /
                   Plugins / Guidelines
+bootstrap         fresh machine: install every tool, then wire every harness found
 install [tools]   install missing [[tool]] entries; "confirm each" vs "install all"
+upgrade [tools]   upgrade installed tools (uv tool upgrade / npm / installer) and
+                  re-pull [[skill]] entries to their latest
 config            create/show ~/.ai-dev-env/config.toml (fill in tokens here)
 choose            pick which managed items to skip (writes config [skip].ids;
                   honoured by install / wire / skills / plugins)
 statusline [--off] add / remove a 'ctx NN%' segment on the Claude Code statusLine
 wire <harness>    everything for one harness: MCP servers + skills + guidelines + plugins
+unwire <harness>  reverse of wire — remove MCP servers, skills, guidelines block
 guidelines        (re)install the always-on agent guidelines
 skills            (re)install skills — local skills/ folders + [[skill]] entries
                   ([[skill]] entries are re-cloned fresh, so this pulls their latest)
@@ -29,7 +33,9 @@ doctor            run each [[tool]] verify command + flag missing config
 
 Secrets (Notion token, …) go in ~/.ai-dev-env/config.toml — a file you own,
 outside the repo clone. `wire` reads it and passes the values to each MCP server.
-Nothing here is destructive. `install` always prints a plan and asks first.
+`install` always prints a plan and asks first. `unwire` is the only subcommand
+that removes things, and only ever harness wiring — never an installed CLI or
+your config.
 """
 
 from __future__ import annotations
@@ -44,43 +50,38 @@ import tempfile
 import tomllib
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
-MANIFEST = REPO / "manifest.toml"
-SKILLS_DIR = REPO / "skills"
-CONFIG = Path(os.environ.get("AI_DEV_ENV_HOME") or Path.home() / ".ai-dev-env") / "config.toml"
-
-OS = {"Windows": "windows", "Darwin": "macos", "Linux": "linux"}.get(platform.system(), "linux")
-IS_WINDOWS = OS == "windows"
-
-if IS_WINDOWS:
-    os.system("")  # enable ANSI escape processing in the Windows console
-# The output uses box-drawing / bullet glyphs; force UTF-8 so it survives a
-# non-UTF-8 Windows console or a redirected pipe (cp1252 would raise).
-for _stream in (sys.stdout, sys.stderr):
-    try:
-        _stream.reconfigure(encoding="utf-8", errors="replace")
-    except (AttributeError, ValueError):
-        pass
-
-
-# ── ansi ────────────────────────────────────────────────────────────────────
-def _c(code: str, s: str) -> str:
-    if os.environ.get("NO_COLOR") or not sys.stdout.isatty():
-        return s
-    return f"\033[{code}m{s}\033[0m"
-
-
-bold = lambda s: _c("1", s)
-green = lambda s: _c("32", s)
-red = lambda s: _c("31", s)
-yellow = lambda s: _c("33", s)
-dim = lambda s: _c("2", s)
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # sibling modules resolve however this is loaded
+from _common import (  # noqa: E402  (must follow the sys.path line above)
+    CONFIG,
+    IS_WINDOWS,
+    MANIFEST,
+    OS,
+    REPO,
+    SKILLS_DIR,
+    bold,
+    dim,
+    green,
+    red,
+    run,
+    yellow,
+)
+from _statusline import cmd_statusline  # noqa: E402  (kept here so setup.py stays the only orchestrator)
 
 
 # ── manifest ────────────────────────────────────────────────────────────────
+SCHEMA_VERSION = 2
+_schema_warned = False
+
+
 def load_manifest() -> dict:
+    global _schema_warned
     with MANIFEST.open("rb") as fh:
-        return tomllib.load(fh)
+        m = tomllib.load(fh)
+    if m.get("schema_version") != SCHEMA_VERSION and not _schema_warned:
+        _schema_warned = True
+        got = m.get("schema_version")
+        print(yellow(f"note: manifest.toml schema_version={got!r}, expected {SCHEMA_VERSION}"), file=sys.stderr)
+    return m
 
 
 def load_tools() -> list[dict]:
@@ -144,20 +145,36 @@ def skipped_ids() -> set[str]:
     return {str(i) for i in ids} if isinstance(ids, list) else set()
 
 
+def _toml_kv(k: str, v) -> str:
+    if isinstance(v, bool):
+        return f"{k} = {str(v).lower()}"
+    if isinstance(v, (int, float)):
+        return f"{k} = {v}"
+    if isinstance(v, list):
+        return f"{k} = [" + ", ".join(f'"{x}"' for x in v) + "]"
+    return f'{k} = "{v}"'
+
+
 def _config_body(skip_override: list[str] | None = None) -> str:
     cfg = load_config()
     env = cfg.get("env", {})
     skip = skip_override if skip_override is not None else list(cfg.get("skip", {}).get("ids", []))
+    managed = all_required_env()
     lines = [
         "# ai-dev-env local config — this machine only, NOT in git.",
         "",
         "# Secrets each MCP server needs. Fill in, then re-run: setup.py wire <harness>",
         "[env]",
     ]
-    for key, desc in all_required_env().items():
+    for key, desc in managed.items():
         for chunk in _wrap(desc, 74):
             lines.append(f"# {chunk}")
         lines.append(f'{key} = "{env.get(key, "")}"')
+        lines.append("")
+    extra_env = {k: v for k, v in env.items() if k not in managed}
+    if extra_env:
+        lines.append("# keys you added — not required by any current tool, kept as-is")
+        lines += [_toml_kv(k, v) for k, v in extra_env.items()]
         lines.append("")
     lines += [
         "# Managed items to leave OUT of install / wire / skills / plugins.",
@@ -165,6 +182,11 @@ def _config_body(skip_override: list[str] | None = None) -> str:
         "[skip]",
         "ids = [" + ", ".join(f'"{i}"' for i in skip) + "]",
     ]
+    for name, table in cfg.items():
+        if name in ("env", "skip") or not isinstance(table, dict):
+            continue
+        lines += ["", "# your own table, kept as-is", f"[{name}]"]
+        lines += [_toml_kv(k, v) for k, v in table.items()]
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -262,11 +284,6 @@ def version_of(tool: dict) -> str:
         return "" if line.lower().startswith(("usage", "options")) else line
     except (subprocess.TimeoutExpired, OSError, IndexError):
         return ""
-
-
-def run(cmd: str, display: str | None = None, **kw) -> int:
-    print(dim(f"  $ {display if display is not None else cmd}"))
-    return subprocess.run(cmd, shell=True, **kw).returncode
 
 
 # ── report ─────────────────────────────────────────────────────────────────
@@ -374,16 +391,20 @@ def _persist_env(key: str, value: str) -> None:
 
 
 def cmd_install(args) -> int:
+    return _install(args.tools, args.mode)
+
+
+def _install(explicit_ids: list[str], mode: str | None) -> int:
     _first_run_gate()
     tools = load_tools()
     skip = skipped_ids()
     # explicit `install <id>` overrides the skip list; a bare run honours it
-    wanted = set(args.tools) if args.tools else {t["id"] for t in tools} - skip
+    wanted = set(explicit_ids) if explicit_ids else {t["id"] for t in tools} - skip
     missing = [t for t in tools if t["id"] in wanted and not is_installed(t)]
     todo = [t for t in missing if install_cmd(t)]
     manual = [t for t in missing if not install_cmd(t)]
     already = [t["id"] for t in tools if t["id"] in wanted and is_installed(t)]
-    left_out = sorted({t["id"] for t in tools} & skip - set(args.tools or []))
+    left_out = sorted({t["id"] for t in tools} & skip - set(explicit_ids or []))
 
     if already:
         print(dim(f"already installed: {', '.join(already)}"))
@@ -406,7 +427,6 @@ def cmd_install(args) -> int:
             print(dim(f"      env: {', '.join(f'{k}={v}' for k, v in t['env'].items())}"))
     print()
 
-    mode = args.mode
     if not mode:
         ans = input("install [a]ll, confirm [e]ach, or [c]ancel? ").strip().lower()
         mode = {"a": "all", "all": "all", "e": "each", "c": "cancel"}.get(ans, "cancel")
@@ -558,7 +578,9 @@ def env_repo_pointer() -> str:
         f"- **Report:** `uv run --python 3.12 {r}/scripts/setup.py report`\n"
         "- **Install:** list what is missing plus each command, ask the user "
         '*"confirm each"* or *"install all"*, then `setup.py install --each|--all`.\n'
-        "- **Wire a harness:** `setup.py wire <claude-code|codex|cursor|generic>`\n"
+        "- **Wire a harness:** `setup.py wire <claude-code|codex|cursor|generic>` "
+        "(`unwire` reverses it; `bootstrap` = install + wire in one go).\n"
+        "- **Update everything:** `setup.py upgrade`.\n"
         f"- Per-entry docs: `{r}/docs/*.md`. Add things by editing "
         f"`{r}/manifest.toml` (4 sections: `[guidelines]` / `[[tool]]` / "
         "`[[skill]]` / `[[plugin]]`)."
@@ -612,6 +634,25 @@ def _install_plugins(harness: str) -> None:
         print((green if rc == 0 else red)(f"  plugin {p['id']} {msg}"))
 
 
+_GRAPHIFY_PLATFORM = {"claude-code": "claude", "codex": "codex", "cursor": "cursor"}
+
+
+def _install_graphify_skill(harness: str) -> None:
+    """graphify ships its skill via its own installer, not as a [[skill]]/bundle."""
+    plat = _GRAPHIFY_PLATFORM.get(harness)
+    if not plat:
+        return
+    g = next((t for t in load_tools() if t["id"] == "graphify"), None)
+    if not g or g["id"] in skipped_ids():
+        return
+    if shutil.which("graphify") is None:
+        print(dim("  graphify: CLI not installed — skipping its skill (setup.py install graphify)"))
+        return
+    rc = run(f"graphify install --platform {plat}", capture_output=True)
+    tail = "installed" if rc == 0 else "installer returned nonzero"
+    print((green if rc == 0 else yellow)(f"  graphify skill ({plat}) {tail}"))
+
+
 def wire_claude_code(tools) -> int:
     if shutil.which("claude") is None:
         print(red("  `claude` CLI not found — is Claude Code installed?"))
@@ -627,7 +668,7 @@ def wire_claude_code(tools) -> int:
         base = f"claude mcp add --scope user {t['id']} {{}} -- {command} {args}"
         run(" ".join(base.format(env).split()), display=" ".join(base.format(env_masked).split()))
         _warn_missing_env(t)
-    print(dim("  (graphify registers its own skill: run `graphify install --platform claude`)"))
+    _install_graphify_skill("claude-code")
     return 0
 
 
@@ -647,7 +688,7 @@ def wire_codex(tools) -> int:
         if run(" ".join(base.format(env).split()), display=" ".join(base.format(env_masked).split())) != 0:
             print(yellow(f"  `codex mcp add` failed for {t['id']} — add manually to {codex_home}/config.toml"))
         _warn_missing_env(t)
-    print(dim("  graphify: run `graphify install --platform codex`"))
+    _install_graphify_skill("codex")
     return 0
 
 
@@ -664,7 +705,7 @@ def _print_bundled_skills() -> None:
 def wire_cursor(tools) -> int:
     _print_mcp_json(tools, Path.home() / ".cursor" / "mcp.json")
     _print_bundled_skills()
-    print(dim("  graphify: run `graphify install --platform cursor`"))
+    _install_graphify_skill("cursor")
     return 0
 
 
@@ -764,16 +805,154 @@ def cmd_choose(_args) -> int:
 
 
 def cmd_wire(args) -> int:
-    fn = WIRERS.get(args.harness)
+    return _wire(args.harness)
+
+
+def _wire(harness: str) -> int:
+    fn = WIRERS.get(harness)
     if not fn:
-        print(red(f"unknown harness '{args.harness}'. choices: {', '.join(WIRERS)}"))
+        print(red(f"unknown harness '{harness}'. choices: {', '.join(WIRERS)}"))
         return 2
     _first_run_gate()
-    print(bold(f"\nwiring ai-dev-env into {args.harness}\n"))
+    print(bold(f"\nwiring ai-dev-env into {harness}\n"))
     rc = fn(load_tools())
-    _install_guidelines(args.harness)
-    _install_plugins(args.harness)
+    _install_guidelines(harness)
+    _install_plugins(harness)
     return rc
+
+
+# ── bootstrap ──────────────────────────────────────────────────────────────
+def _detected_harnesses() -> list[str]:
+    """Harnesses whose CLI is on PATH that `wire` fully automates, in wire order."""
+    return [h for h, exe in (("claude-code", "claude"), ("codex", "codex")) if shutil.which(exe)]
+
+
+def cmd_bootstrap(args) -> int:
+    """Fresh machine, one shot: install every tool, then wire every harness found."""
+    print(bold("\nai-dev-env bootstrap\n"))
+    _first_run_gate()
+
+    rc = _install([], args.mode)
+    if rc != 0 and not args.keep_going:
+        print(red("\ninstall reported errors — fix them, or re-run with --keep-going. Not wiring."))
+        return rc
+
+    harnesses = _detected_harnesses()
+    if not harnesses:
+        print(yellow("\nno harness CLI on PATH (claude / codex) — install one, then: setup.py wire <harness>"))
+    for h in harnesses:
+        _wire(h)
+
+    need = [k for k in all_required_env() if k not in config_env()]
+    if need:
+        print(yellow(f"\nsecrets still needed in {CONFIG}: {', '.join(need)}"))
+        print(dim("  fill them in, then re-run: setup.py wire <harness>"))
+    print(green("\nbootstrap done.") if rc == 0 else yellow("\nbootstrap done (with install errors above)."))
+    return rc if args.keep_going else 0
+
+
+# ── upgrade ────────────────────────────────────────────────────────────────
+def upgrade_cmd(t: dict) -> str | None:
+    """How to upgrade a tool: explicit [tool.upgrade], else inferred from install.
+
+    Web installers (`curl … | sh`, `irm … | iex`) are deliberately NOT inferred:
+    re-running one mid-session can partially delete a running native binary on
+    Windows (codegraph's `.node` kernel gets file-locked by its MCP servers).
+    Such tools need an explicit `[tool.upgrade]` or a manual re-install."""
+    up = t.get("upgrade", {})
+    if up.get(OS) or up.get("default"):
+        return up.get(OS) or up.get("default")
+    if t["id"] == "uv":
+        return "uv self update"
+    ins = install_cmd(t) or ""
+    if "uv tool install" in ins:
+        return f"uv tool upgrade {t.get('pypi') or t['id']}"
+    if "npm install -g" in ins:
+        return ins  # re-running `npm install -g <pkg>` pulls the latest
+    return None
+
+
+def cmd_upgrade(args) -> int:
+    tools = load_tools()
+    wanted = set(args.tools) if args.tools else {t["id"] for t in tools} - skipped_ids()
+    targets = [t for t in tools if t["id"] in wanted and is_installed(t)]
+    print(bold("\nupgrading installed tools\n"))
+    rc = 0
+    changed: set[str] = set()
+    for t in targets:
+        cmd = upgrade_cmd(t)
+        if not cmd:
+            print(dim(f"  {t['name']}: no managed upgrade — re-run its installer by hand (see docs/)"))
+            continue
+        before = version_of(t)
+        if run(cmd) != 0:
+            print(red(f"  {t['name']}: upgrade failed"))
+            rc = 1
+            continue
+        after = version_of(t)
+        if before != after:
+            changed.add(t["id"])
+        delta = "unchanged" if before == after else f"{before or '?'} -> {after or '?'}"
+        print(green(f"  {t['name']}: {delta}"))
+    if "graphify" in changed:  # graphify's skill is versioned with its binary
+        for h in _detected_harnesses():
+            _install_graphify_skill(h)
+    if not args.tools and (ext_skills() or bundled_skills()):
+        print(bold("\nrefreshing skills ([[skill]] re-cloned = their upgrade)\n"))
+        for h, d in (("claude", Path.home() / ".claude" / "skills"), ("codex", _codex_home() / "skills")):
+            if shutil.which(h if h == "codex" else "claude"):
+                print(dim(h))
+                _install_skills(d)
+    print(dim("\nplugins auto-update through their harness (e.g. `claude plugin update`)."))
+    return rc
+
+
+# ── unwire ─────────────────────────────────────────────────────────────────
+def _strip_block(path: Path) -> bool:
+    """Remove the marker-delimited guidelines block from a file. Returns whether it was there."""
+    if not path.exists():
+        return False
+    text = path.read_text(encoding="utf-8")
+    if GUIDE_BEGIN not in text or GUIDE_END not in text:
+        return False
+    pre = text[: text.index(GUIDE_BEGIN)]
+    post = text[text.index(GUIDE_END) + len(GUIDE_END) :]
+    body = (pre.rstrip() + "\n\n" + post.lstrip()).strip()
+    path.write_text(body + "\n" if body else "", encoding="utf-8")
+    return True
+
+
+def cmd_unwire(args) -> int:
+    h = args.harness
+    if h not in WIRERS:
+        print(red(f"unknown harness '{h}'. choices: {', '.join(WIRERS)}"))
+        return 2
+    print(bold(f"\nremoving ai-dev-env wiring from {h}\n"))
+    mcp_ids = [t["id"] for t in load_tools() if t.get("mcp")]
+
+    if h in ("claude-code", "codex"):
+        remove = "claude mcp remove {} -s user" if h == "claude-code" else "codex mcp remove {}"
+        for i in mcp_ids:
+            subprocess.run(remove.format(i), shell=True, capture_output=True)
+            print(dim(f"  mcp removed: {i}"))
+        skills_dir = (Path.home() / ".claude" if h == "claude-code" else _codex_home()) / "skills"
+        names = [s.name for s in bundled_skills()]
+        names += [Path(sub).name for s in ext_skills() for sub in s.get("paths", [s["id"]])]
+        for n in names:
+            if (skills_dir / n).exists():
+                shutil.rmtree(skills_dir / n, ignore_errors=True)
+                print(dim(f"  skill removed: {n}"))
+        agents = (Path.home() / ".claude" if h == "claude-code" else _codex_home()) / "AGENTS.md"
+        print(dim(f"  guidelines block: AGENTS.md removed={_strip_block(agents)}"))
+        if h == "claude-code":
+            print(dim(f"  guidelines block: CLAUDE.md removed={_strip_block(Path.home() / '.claude' / 'CLAUDE.md')}"))
+    else:
+        print(dim(f"  {h}: manual — remove the MCP entries, skill dirs, and guidelines block yourself"))
+
+    print(dim("\n  kept: installed CLIs, ~/.ai-dev-env/config.toml, plugins, statusline."))
+    print(dim("  uninstall a CLI:   uv tool uninstall <id>   /   npm uninstall -g <pkg>"))
+    print(dim("  statusline off:    setup.py statusline --off"))
+    return 0
 
 
 def cmd_guidelines(args) -> int:
@@ -810,72 +989,8 @@ def cmd_skills(args) -> int:
 
 
 # ── statusline ─────────────────────────────────────────────────────────────
-STATUSLINE_DIR = Path.home() / ".claude" / "ai-dev-env-statusline"
-_CLAUDE_SETTINGS = Path.home() / ".claude" / "settings.json"
-
-
-def _load_claude_settings() -> dict:
-    if not _CLAUDE_SETTINGS.exists():
-        return {}
-    import json
-
-    try:
-        return json.loads(_CLAUDE_SETTINGS.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-
-
-def _save_claude_settings(d: dict) -> None:
-    import json
-
-    _CLAUDE_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
-    _CLAUDE_SETTINGS.write_text(json.dumps(d, indent=2) + "\n", encoding="utf-8")
-
-
-def cmd_statusline(args) -> int:
-    our_cmd = 'bash "$HOME/.claude/ai-dev-env-statusline/statusline.sh"'
-    settings = _load_claude_settings()
-    prev_file = STATUSLINE_DIR / "statusline-prev.txt"
-
-    if args.off:
-        prev = prev_file.read_text(encoding="utf-8").strip() if prev_file.exists() else ""
-        if prev:
-            settings["statusLine"] = {"type": "command", "command": prev}
-            print(dim(f"restored previous statusLine: {prev[:60]}…"))
-        else:
-            settings.pop("statusLine", None)
-            print(dim("removed statusLine"))
-        _save_claude_settings(settings)
-        shutil.rmtree(STATUSLINE_DIR, ignore_errors=True)
-        print(green("statusline off"))
-        return 0
-
-    src = REPO / "contrib" / "statusline"
-    STATUSLINE_DIR.mkdir(parents=True, exist_ok=True)
-    for name in ("statusline.sh", "ctx.py"):
-        dst = STATUSLINE_DIR / name
-        shutil.copy2(src / name, dst)
-        try:
-            dst.chmod(0o755)
-        except OSError:
-            pass
-
-    cur = (settings.get("statusLine") or {}).get("command", "")
-    if "ai-dev-env-statusline" not in cur:
-        prev_file.write_text(cur, encoding="utf-8")  # empty if there was none
-        if cur:
-            print(dim(f"chaining to existing statusLine ({len(cur)} chars saved)"))
-    elif not prev_file.exists():
-        prev_file.write_text("", encoding="utf-8")
-
-    settings["statusLine"] = {"type": "command", "command": our_cmd}
-    _save_claude_settings(settings)
-    print(green(f"  statusline → {STATUSLINE_DIR}"))
-    print(green(f"  {_CLAUDE_SETTINGS} statusLine → {our_cmd}"))
-    print(dim("  shows ' | ctx NN%' at the bottom next turn (restart the session if not)"))
-    print(dim("  macOS: works on plain Claude Code; macOS+Orca is untested"))
-    print(dim("  if a host (Orca) rewrites settings.json, re-run: setup.py statusline"))
-    return 0
+# `cmd_statusline` lives in scripts/_statusline.py (Claude-Code-specific, touches
+# ~/.claude/settings.json, pairs with contrib/statusline/). Imported at the top.
 
 
 # ── doctor ─────────────────────────────────────────────────────────────────
@@ -887,8 +1002,14 @@ def cmd_doctor(_args) -> int:
             print(f"{dim('SKIP')}  {t['name']:<24} {dim('config [skip]')}")
             continue
         ok = is_installed(t)
-        print(f"{green('PASS') if ok else red('FAIL')}  {t['name']:<24} {dim(t.get('verify', ''))}")
-        rc |= 0 if ok else 1
+        if ok:
+            print(f"{green('PASS')}  {t['name']:<24} {dim(t.get('verify', ''))}")
+        elif not install_cmd(t):
+            # a prerequisite with no managed install (e.g. node) — advisory, not a failure
+            print(f"{yellow('WARN')}  {t['name']:<24} {dim('not installed — install it yourself, see docs/')}")
+        else:
+            print(f"{red('FAIL')}  {t['name']:<24} {dim(t.get('verify', ''))}")
+            rc |= 1
         for k in missing_env(t):
             print(f"{yellow('WARN')}  {t['name']:<24} {k} missing — fill in {CONFIG}")
             if t.get("setup"):
@@ -912,6 +1033,17 @@ def main() -> int:
     g.add_argument("--each", dest="mode", action="store_const", const="each", help="confirm each tool")
     pi.set_defaults(fn=cmd_install, mode=None)
 
+    pb = sub.add_parser("bootstrap", help="fresh machine: install all tools + wire every harness found")
+    gb = pb.add_mutually_exclusive_group()
+    gb.add_argument("--all", dest="mode", action="store_const", const="all", help="no prompts")
+    gb.add_argument("--each", dest="mode", action="store_const", const="each", help="confirm each tool")
+    pb.add_argument("--keep-going", action="store_true", help="wire even if some installs failed")
+    pb.set_defaults(fn=cmd_bootstrap, mode=None)
+
+    pup = sub.add_parser("upgrade", help="upgrade installed tools + re-pull [[skill]] latest")
+    pup.add_argument("tools", nargs="*", help="tool ids (default: all installed)")
+    pup.set_defaults(fn=cmd_upgrade)
+
     sub.add_parser("config", help="create/show ~/.ai-dev-env/config.toml").set_defaults(fn=cmd_config)
 
     sub.add_parser("choose", help="pick which tools/skills/plugins to skip").set_defaults(fn=cmd_choose)
@@ -923,6 +1055,10 @@ def main() -> int:
     pw = sub.add_parser("wire", help="install bundled skills + MCP + guidelines into a harness")
     pw.add_argument("harness", choices=list(WIRERS))
     pw.set_defaults(fn=cmd_wire)
+
+    pun = sub.add_parser("unwire", help="remove ai-dev-env wiring (MCP + skills + guidelines) from a harness")
+    pun.add_argument("harness", choices=list(WIRERS))
+    pun.set_defaults(fn=cmd_unwire)
 
     pg = sub.add_parser("guidelines", help="install always-on agent guidelines (AGENTS.md + CLAUDE.md ref)")
     pg.add_argument("harness", nargs="?", choices=list(WIRERS), help="default: claude-code + codex")

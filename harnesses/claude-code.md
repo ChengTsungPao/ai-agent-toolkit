@@ -4,6 +4,7 @@
 
 - copies every `skills/<name>/` bundle → `~/.claude/skills/<name>/`
 - `claude mcp add --scope user <id> -e <ENV> -- <command> <args>` for each MCP tool
+- `graphify install --platform claude` (if graphify is installed and not skipped)
 - guidelines: full text → `~/.claude/AGENTS.md`; a one-line reference block
   (marker-delimited) is appended to `~/.claude/CLAUDE.md`
 
@@ -18,19 +19,18 @@ cat ~/.claude/AGENTS.md                 # guidelines + env-repo pointer
 
 ## graphify
 
-graphify ships its own skill installer:
-
-```bash
-graphify install --platform claude
-```
-
-That writes `~/.claude/skills/graphify/` and a `~/.claude/CLAUDE.md` entry.
-Then `/graphify .` in any repo.
+graphify ships its own skill installer; `wire` runs it for you
+(`graphify install --platform claude`). It writes `~/.claude/skills/graphify/`
+and a `~/.claude/CLAUDE.md` entry. Then `/graphify .` in any repo. Run it by
+hand only if graphify was installed *after* the last `wire`.
 
 ## Removing
 
 ```bash
-claude mcp remove basic-memory -s user
-# skills: rm -rf ~/.claude/skills/<name>
-# guidelines: delete the marked block in ~/.claude/AGENTS.md and ~/.claude/CLAUDE.md
+setup.py unwire claude-code      # MCP servers + bundled/[[skill]] dirs + guidelines block
+setup.py statusline --off         # if the context segment was installed
 ```
+
+`unwire` leaves installed CLIs and `~/.ai-dev-env/config.toml` alone. To also
+drop a CLI: `uv tool uninstall <id>` / `npm uninstall -g <pkg>`. graphify's own
+skill dir is removed by `graphify` itself if needed.

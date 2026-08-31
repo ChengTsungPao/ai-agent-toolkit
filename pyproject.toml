@@ -14,7 +14,8 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["E402"]  # imports after path setup
+"tests/*" = ["E402"]              # imports after sys.path setup
+"scripts/setup.py" = ["E402", "I001"]  # sibling-module imports must follow the sys.path.insert line
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
