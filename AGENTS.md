@@ -39,9 +39,9 @@ Your **own** skills go as committed folders under `skills/<name>/` (with a
 manual wiring.
 
 `setup.py` commands: `report` (default, grouped status) · `install` · `config` ·
-`choose` · `wire <harness>` · `skills` · `plugins` · `guidelines` · `doctor`. `wire`
-automates Claude Code and Codex fully; for Cursor / generic it prints the MCP
-JSON and skill paths to apply by hand.
+`choose` · `statusline` · `wire <harness>` · `skills` · `plugins` · `guidelines` ·
+`doctor`. `wire` automates Claude Code and Codex fully; for Cursor / generic it
+prints the MCP JSON and skill paths to apply by hand.
 
 Gemini CLI and Google Antigravity are **not** wired by this repo (no reliable
 global config path known / not in active use). Add them to `WIRERS` if that
@@ -63,6 +63,7 @@ content it distributes or notes.
 | `guidelines/` | the behavioural rules **distributed to** every machine (`AGENTS.md` = the rules; `CLAUDE.md` = a stub for other repos). Not this file. | change the always-on rules |
 | `skills/` | the user's **own** skill bundles, copied verbatim to each harness (`skills/README.md` = format) | add one of the user's own skills |
 | `harnesses/` | per-harness reference: what `wire <name>` does + manual steps | when a harness's wiring changes |
+| `contrib/` | harness tweaks that aren't a tool/skill/plugin/MCP — each `contrib/<name>/` is helper scripts + one `setup.py` subcommand (currently `statusline/`: the Claude Code context-usage segment) | add a new opt-in harness customization |
 | `docs/` | optional per-entry pages — rationale + fiddly setup, not tutorials | record a real decision or a painful setup |
 | `AGENTS.md`, `CLAUDE.md` (root) | how to work on this repo (this file) | when the repo's own structure/rules change |
 
@@ -83,6 +84,11 @@ config` creates it; it can't be committed (it's in `$HOME`).
 
 `setup.py` itself changes only for a whole new *kind* of thing or a new
 subcommand — and stays stdlib-only, Python 3.11+.
+
+A **harness tweak that isn't a tool/skill/plugin/MCP** (something that edits a
+harness's own config, not the manifest) goes in `contrib/<name>/` with its own
+`setup.py` subcommand — opt-in, reversible (`--off`), and it must not run as part
+of `wire`. `statusline` is the model to copy.
 
 ## Tests, lint, CI
 

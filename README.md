@@ -87,6 +87,7 @@ Run via `scripts/install.sh` / `.ps1`, or `uv run --python 3.12 scripts/setup.py
 | **`guidelines/`** | the always-on behavioural rules injected into every harness — content distributed *to* machines, not docs about this repo |
 | **`skills/`** | your **own** skill bundles (committed). Third-party skills live in `manifest.toml` as `[[skill]]`, not here |
 | **`harnesses/`** | per-harness reference — what `wire` does for Claude Code / Codex / Cursor, and the manual steps |
+| **`contrib/`** | optional harness tweaks that aren't a tool/skill/plugin/MCP — each is a helper script + a `setup.py` subcommand (currently `statusline/`) |
 | **`docs/`** | one optional page per manifest entry: *why* it was chosen + fiddly setup |
 | **`AGENTS.md`** / **`CLAUDE.md`** | how to work **on this repo** |
 
