@@ -338,13 +338,17 @@ def cmd_report(_args) -> int:
     print(f"{'':<24} {mark}  {dim('AGENTS.md canonical, CLAUDE.md references it')}")
     print(f"  {dim('install:')} setup.py guidelines")
 
-    missing = [t["id"] for t in tools if t["id"] not in skip and not is_installed(t)]
+    missing = [t for t in tools if t["id"] not in skip and not is_installed(t)]
+    missing_auto = [t["id"] for t in missing if install_cmd(t)]
+    missing_manual = [t["id"] for t in missing if not install_cmd(t)]
     print()
     if skip:
         print(dim(f"skipped (config [skip]): {', '.join(sorted(skip))}   ·   change: setup.py choose"))
-    if missing:
-        print(yellow(f"missing: {', '.join(missing)}   →   setup.py install"))
-    else:
+    if missing_auto:
+        print(yellow(f"missing: {', '.join(missing_auto)}   →   setup.py install"))
+    if missing_manual:
+        print(yellow(f"missing (install yourself): {', '.join(missing_manual)}   →   see docs/"))
+    if not missing:
         print(green("all tools installed"))
     print(dim("wire a harness:  setup.py wire <claude-code|codex|cursor|generic>"))
     return 0
@@ -375,7 +379,9 @@ def cmd_install(args) -> int:
     skip = skipped_ids()
     # explicit `install <id>` overrides the skip list; a bare run honours it
     wanted = set(args.tools) if args.tools else {t["id"] for t in tools} - skip
-    todo = [t for t in tools if t["id"] in wanted and not is_installed(t)]
+    missing = [t for t in tools if t["id"] in wanted and not is_installed(t)]
+    todo = [t for t in missing if install_cmd(t)]
+    manual = [t for t in missing if not install_cmd(t)]
     already = [t["id"] for t in tools if t["id"] in wanted and is_installed(t)]
     left_out = sorted({t["id"] for t in tools} & skip - set(args.tools or []))
 
@@ -383,8 +389,14 @@ def cmd_install(args) -> int:
         print(dim(f"already installed: {', '.join(already)}"))
     if left_out:
         print(dim(f"skipped (config [skip]): {', '.join(left_out)}"))
+    if manual:
+        print(yellow("install these yourself — no managed install command on this OS:"))
+        for t in manual:
+            doc = t.get("docs", "")
+            hint = t.get("usage", {}).get("short") or (f"see {doc}" if doc else "")
+            print(f"  • {bold(t['name'])}{f' — {hint}' if hint else ''}")
     if not todo:
-        print(green("nothing to install."))
+        print(green("nothing to install automatically.") if manual else green("nothing to install."))
         return 0
 
     print(bold("\nplanned installs:"))
