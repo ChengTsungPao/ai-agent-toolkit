@@ -65,6 +65,7 @@ setup.py report              # grouped status: MCP servers / CLI tools / Skills 
 setup.py install [ids] [--all|--each]
 setup.py config              # create/show ~/.ai-dev-env/config.toml
 setup.py choose              # pick which items to skip
+setup.py statusline [--off]  # add a 'ctx NN%' segment to the Claude Code statusLine (contrib/statusline/)
 setup.py wire <claude-code|codex|cursor|generic>   # MCP + skills + guidelines + plugins
 setup.py skills | plugins | guidelines [harness]              # one group only
 setup.py doctor

@@ -19,6 +19,7 @@ install [tools]   install missing [[tool]] entries; "confirm each" vs "install a
 config            create/show ~/.ai-dev-env/config.toml (fill in tokens here)
 choose            pick which managed items to skip (writes config [skip].ids;
                   honoured by install / wire / skills / plugins)
+statusline [--off] add / remove a 'ctx NN%' segment on the Claude Code statusLine
 wire <harness>    everything for one harness: MCP servers + skills + guidelines + plugins
 guidelines        (re)install the always-on agent guidelines
 skills            (re)install skills — local skills/ folders + [[skill]] entries
@@ -796,6 +797,75 @@ def cmd_skills(args) -> int:
     return 0
 
 
+# ── statusline ─────────────────────────────────────────────────────────────
+STATUSLINE_DIR = Path.home() / ".claude" / "ai-dev-env-statusline"
+_CLAUDE_SETTINGS = Path.home() / ".claude" / "settings.json"
+
+
+def _load_claude_settings() -> dict:
+    if not _CLAUDE_SETTINGS.exists():
+        return {}
+    import json
+
+    try:
+        return json.loads(_CLAUDE_SETTINGS.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _save_claude_settings(d: dict) -> None:
+    import json
+
+    _CLAUDE_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
+    _CLAUDE_SETTINGS.write_text(json.dumps(d, indent=2) + "\n", encoding="utf-8")
+
+
+def cmd_statusline(args) -> int:
+    our_cmd = 'bash "$HOME/.claude/ai-dev-env-statusline/statusline.sh"'
+    settings = _load_claude_settings()
+    prev_file = STATUSLINE_DIR / "statusline-prev.txt"
+
+    if args.off:
+        prev = prev_file.read_text(encoding="utf-8").strip() if prev_file.exists() else ""
+        if prev:
+            settings["statusLine"] = {"type": "command", "command": prev}
+            print(dim(f"restored previous statusLine: {prev[:60]}…"))
+        else:
+            settings.pop("statusLine", None)
+            print(dim("removed statusLine"))
+        _save_claude_settings(settings)
+        shutil.rmtree(STATUSLINE_DIR, ignore_errors=True)
+        print(green("statusline off"))
+        return 0
+
+    src = REPO / "contrib" / "statusline"
+    STATUSLINE_DIR.mkdir(parents=True, exist_ok=True)
+    for name in ("statusline.sh", "ctx.py"):
+        dst = STATUSLINE_DIR / name
+        shutil.copy2(src / name, dst)
+        try:
+            dst.chmod(0o755)
+        except OSError:
+            pass
+
+    cur = (settings.get("statusLine") or {}).get("command", "")
+    if "ai-dev-env-statusline" not in cur:
+        prev_file.write_text(cur, encoding="utf-8")  # empty if there was none
+        if cur:
+            print(dim(f"chaining to existing statusLine ({len(cur)} chars saved)"))
+    elif not prev_file.exists():
+        prev_file.write_text("", encoding="utf-8")
+
+    settings["statusLine"] = {"type": "command", "command": our_cmd}
+    _save_claude_settings(settings)
+    print(green(f"  statusline → {STATUSLINE_DIR}"))
+    print(green(f"  {_CLAUDE_SETTINGS} statusLine → {our_cmd}"))
+    print(dim("  shows ' | ctx NN%' at the bottom next turn (restart the session if not)"))
+    print(dim("  macOS: works on plain Claude Code; macOS+Orca is untested"))
+    print(dim("  if a host (Orca) rewrites settings.json, re-run: setup.py statusline"))
+    return 0
+
+
 # ── doctor ─────────────────────────────────────────────────────────────────
 def cmd_doctor(_args) -> int:
     rc = 0
@@ -833,6 +903,10 @@ def main() -> int:
     sub.add_parser("config", help="create/show ~/.ai-dev-env/config.toml").set_defaults(fn=cmd_config)
 
     sub.add_parser("choose", help="pick which tools/skills/plugins to skip").set_defaults(fn=cmd_choose)
+
+    psl = sub.add_parser("statusline", help="add a context-usage segment to the Claude Code statusLine")
+    psl.add_argument("--off", action="store_true", help="remove it, restoring the previous statusLine")
+    psl.set_defaults(fn=cmd_statusline)
 
     pw = sub.add_parser("wire", help="install bundled skills + MCP + guidelines into a harness")
     pw.add_argument("harness", choices=list(WIRERS))
