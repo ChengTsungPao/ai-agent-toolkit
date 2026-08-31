@@ -20,9 +20,15 @@ setup.py statusline --off   # remove, restore what was there before
 
 `setup.py statusline` copies both into `~/.claude/ai-dev-env-statusline/` and
 sets `~/.claude/settings.json` `statusLine` to
-`<uv> run --python 3.12 --no-project "<…>/wrapper.py"` (an absolute `uv` path,
-so it doesn't depend on PATH ordering or a transient venv; falls back to a
-validated system `python` if `uv` is somehow absent).
+`uv run --python 3.12 --no-project "<…>/wrapper.py"` (falls back to a validated
+system `python` if `uv` is absent).
+
+The interpreter is a **bare command name, never an absolute quoted path**.
+Claude Code on Windows runs the statusLine via `cmd.exe /c "<command>"`; cmd
+strips a matched outer quote pair, so a leading `"C:\…\uv.exe"` becomes
+unbalanced and the whole command fails silently (`The filename, directory name,
+or volume label syntax is incorrect`). A bare `uv` — like the `bash` the shell
+version used — is resolved from PATH and avoids this.
 
 ## Requirements
 
