@@ -35,10 +35,11 @@ it, then runs everything on a pinned Python.
 | | | |
 |---|---|---|
 | **uv** | tool | Python toolchain; every other CLI is an isolated `uv tool` |
-| **Node.js** | prereq | not auto-installed — needed only by the two npm-based MCP servers below ([`docs/node.md`](docs/node.md)) |
+| **Node.js** | prereq | not auto-installed — needed only by the npm-based MCP servers below ([`docs/node.md`](docs/node.md)) |
 | **Basic Memory** | MCP | private, local, **human-editable** Markdown memory shared across harnesses |
 | **Notion MCP** | MCP | official `@notionhq/notion-mcp-server`, runs locally — read/write Notion pages & DBs |
-| **Chrome DevTools MCP** | MCP | drive a local Chrome — navigate, screenshot, console, Lighthouse, perf traces |
+| **Chrome DevTools MCP** | MCP | drive/attach a local Chrome — navigate, screenshot, console, Lighthouse, perf traces |
+| **Playwright MCP** | MCP | `@playwright/mcp` — cross-browser automation off the a11y tree; auto-wait, `--codegen` (overlaps Chrome DevTools MCP; kept side by side) |
 | **graphify** | tool | codebase → queryable knowledge graph (tree-sitter + Leiden), `/graphify` |
 | **CodeGraph** | MCP | live auto-syncing code graph — "who calls X / impact of changing Y" in one call (overlaps graphify; being compared) |
 | **grill-me** | skill | relentless interview to sharpen a plan before coding, `/grill-me` |

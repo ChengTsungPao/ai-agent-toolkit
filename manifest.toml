@@ -175,6 +175,31 @@ args    = ["/c", "chrome-devtools-mcp"]
 [tool.usage]
 short = "Ask the agent to open a page / screenshot it / check console errors / run a perf trace. Needs Chrome or Chromium (downloads a matching build on first use if none found). No token."
 
+# ---- Playwright MCP ------------------------------------------------- mcp
+# Overlaps chrome-devtools on purpose (kept side by side, like graphify/codegraph).
+# chrome-devtools = attach to YOUR running Chrome for perf / network / console
+# debugging; playwright-mcp = repeatable cross-browser automation off the a11y tree.
+[[tool]]
+id      = "playwright-mcp"
+name    = "Playwright MCP"
+kind    = "mcp"
+purpose = "Microsoft's official Playwright MCP (@playwright/mcp). Cross-browser (Chromium / Firefox / WebKit / MS Edge) automation driven by the page's accessibility tree: navigate, click, fill forms, wait, assert, screenshot, generate test code. Auto-waiting and robust locators make it the pick for repeatable automation; Chrome DevTools MCP is the pick for debugging a live Chrome session (perf traces, Lighthouse, heap, your logins). 100% local."
+verify  = "playwright-mcp --version"
+docs    = "docs/playwright-mcp.md"
+[tool.install]
+default = "npm install -g @playwright/mcp"   # needs Node.js / npm; bundles playwright-core
+[tool.mcp]
+command = "playwright-mcp"
+# --browser chrome reuses the system Chrome channel — no ~150 MB Playwright
+# browser download. For Firefox / WebKit: `npx playwright install firefox webkit`.
+args    = ["--browser", "chrome"]
+[tool.mcp.windows]
+# npm's global bin is a .cmd shim a harness can't spawn directly — go through cmd.
+command = "cmd"
+args    = ["/c", "playwright-mcp", "--browser", "chrome"]
+[tool.usage]
+short = "Ask the agent to drive a browser: open a URL, click / fill a form, wait for an element, screenshot, or generate a Playwright test. Add `--headless` for no window, `--device \"iPhone 15\"` to emulate. Needs the chosen browser installed (system Chrome by default). No token."
+
 
 # ═════════════════════════════════ SKILLS ════════════════════════════════
 # Cloned fresh from `repo` each run; `paths` are the sub-dirs to copy into the
