@@ -1,16 +1,15 @@
 """Claude Code statusLine wrapper — installed by `setup.py statusline`.
 
-Reads the statusLine JSON on stdin once, then:
-
 1. runs whatever statusLine command was configured *before* this one (saved to
    `statusline-prev.txt` on install) so a host's own hook — e.g. Orca, which
    uses the slot as a data pipe — keeps working;
-2. appends the context-usage segment produced by `ctx.py`.
+2. appends the context-usage segment from `ctx.py`.
 
-Pure Python + stdlib. A plain Claude Code install has no previous command, so
-no shell is involved at all. When there IS one, it is POSIX `sh` syntax and is
-run through `sh` (or `bash`) — on Windows that is the Git Bash a host like Orca
-already requires.
+The payload is read and forwarded as **bytes**. Claude Code's statusLine JSON
+can carry non-UTF-8 sequences (a path, a prompt snippet); a text-mode round-trip
+would re-encode them with the Windows locale codec (cp950, …) and crash, which
+is exactly what killed the first version of this script. `sh` / `bash` is used
+only to run the previous command — a plain Claude Code install has none.
 """
 
 import shutil
@@ -19,18 +18,12 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-
-
-def _run(cmd: list[str], payload: str) -> None:
-    """Run cmd, feeding it the payload, letting its output through. Never raises."""
-    try:
-        subprocess.run(cmd, input=payload, text=True, timeout=10)
-    except (OSError, subprocess.SubprocessError):
-        pass
+sys.path.insert(0, str(HERE))
+import ctx  # noqa: E402
 
 
 def main() -> None:
-    payload = sys.stdin.read()
+    payload = sys.stdin.buffer.read()  # bytes — never decode / re-encode
 
     try:
         prev = (HERE / "statusline-prev.txt").read_text(encoding="utf-8").strip()
@@ -39,9 +32,16 @@ def main() -> None:
     if prev:
         shell = shutil.which("sh") or shutil.which("bash")
         if shell:
-            _run([shell, "-c", prev], payload)
+            try:
+                subprocess.run([shell, "-c", prev], input=payload, timeout=10)
+            except (OSError, subprocess.SubprocessError):
+                pass
 
-    _run([sys.executable, str(HERE / "ctx.py")], payload)
+    try:
+        sys.stdout.buffer.write(ctx.segment(payload).encode("utf-8"))
+        sys.stdout.buffer.flush()
+    except Exception:
+        pass
 
 
 main()
