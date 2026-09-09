@@ -40,6 +40,7 @@ it, then runs everything on a pinned Python.
 | **Notion MCP** | MCP | official `@notionhq/notion-mcp-server`, runs locally — read/write Notion pages & DBs |
 | **Chrome DevTools MCP** | MCP | drive/attach a local Chrome — navigate, screenshot, console, Lighthouse, perf traces |
 | **Playwright MCP** | MCP | `@playwright/mcp` — cross-browser automation off the a11y tree; auto-wait, `--codegen` (overlaps Chrome DevTools MCP; kept side by side) |
+| **LinkedIn MCP** | MCP | `mcp-server-linkedin` (community) — read profiles / companies / jobs / feed via your own logged-in browser session. Browser-login auth, no keys. **LinkedIn ToS forbids automation — personal, low-volume use, at your own risk** |
 | **graphify** | tool | codebase → queryable knowledge graph (tree-sitter + Leiden), `/graphify` |
 | **CodeGraph** | MCP | live auto-syncing code graph — "who calls X / impact of changing Y" in one call (overlaps graphify; being compared) |
 | **grill-me** | skill | relentless interview to sharpen a plan before coding, `/grill-me` |
