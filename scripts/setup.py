@@ -737,7 +737,45 @@ def wire_antigravity(tools) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
     _install_graphify_skill("antigravity")
+    _wire_antigravity_remote_control(home)
     return 0
+
+
+def _wire_antigravity_remote_control(home: Path) -> None:
+    """Configure Antigravity Remote Control daemon with a general instance name.
+
+    Ensures remoteControlHostname in <home>/config.json and starts the daemon so
+    sessions are grouped under one persistent machine rather than creating ad-hoc
+    ephemeral slugs for each session.
+    """
+    import json
+
+    cfg_path = home / "config.json"
+    cfg = {}
+    if cfg_path.exists():
+        try:
+            cfg = json.loads(cfg_path.read_text(encoding="utf-8-sig").strip() or "{}")
+        except ValueError:
+            cfg = {}
+
+    user_settings = cfg.setdefault("userSettings", {})
+    existing = user_settings.get("remoteControlHostname") or user_settings.get("cliRemoteControlHostname")
+    instance_name = os.environ.get("AGY_INSTANCE_NAME") or existing or "Dev-Workstation"
+
+    user_settings["remoteControlEnabled"] = True
+    user_settings["remoteControlHostname"] = instance_name
+    user_settings["cliRemoteControlHostname"] = instance_name
+
+    cfg_path.parent.mkdir(parents=True, exist_ok=True)
+    cfg_path.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+
+    cmd = f'agy remote-control start --name "{instance_name}"'
+    r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    if r.returncode == 0:
+        print(green(f"  remote-control → daemon started as '{instance_name}'"))
+    else:
+        print(dim(f"  remote-control → instance name '{instance_name}' configured"))
+    print(dim(f"    (change anytime: agy remote-control start --name <custom-name>)"))
 
 
 def _print_bundled_skills() -> None:
