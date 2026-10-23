@@ -705,6 +705,38 @@ def wire_codex(tools) -> int:
     return 0
 
 
+def _resolve_npm_shim(cmd: str, args: list[str]) -> tuple[str, list[str]]:
+    """On Windows, resolve `cmd /c <npm_tool>` to `node <path/to/cli.js>`.
+
+    Spawning `cmd.exe` from a GUI process like Antigravity flashes a visible
+    console window. Direct `node` invocation runs silently without a window.
+    """
+    import re
+
+    if not IS_WINDOWS or cmd.lower() not in ("cmd", "cmd.exe"):
+        return cmd, args
+    if len(args) < 2 or args[0].lower() != "/c":
+        return cmd, args
+    target = args[1]
+    target_cmd = shutil.which(target)
+    if not target_cmd or not target_cmd.lower().endswith(".cmd"):
+        return cmd, args
+    try:
+        content = Path(target_cmd).read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return cmd, args
+    dp0 = Path(target_cmd).parent
+    m = re.search(r'%dp0%\\(node_modules\\[^\s"\']+)', content, re.IGNORECASE)
+    if not m:
+        return cmd, args
+    rel_path = m.group(1).rstrip('"\'')
+    script = dp0 / rel_path
+    if not script.exists():
+        return cmd, args
+    node_exe = shutil.which("node") or "node"
+    return node_exe, [str(script)] + list(args[2:])
+
+
 def wire_antigravity(tools) -> int:
     """Skills -> <agy>/skills, MCP servers merged into <agy>/mcp_config.json.
 
@@ -727,6 +759,7 @@ def wire_antigravity(tools) -> int:
     servers = cfg.setdefault("mcpServers", {})
     for t in _mcp_tools(tools):
         command, arglist = mcp_spec(t)
+        command, arglist = _resolve_npm_shim(command, arglist)
         entry = {"command": shutil.which(command) or command, "args": arglist}
         env = {**t.get("env", {}), **resolved_env(env_required(t))}
         if env:
