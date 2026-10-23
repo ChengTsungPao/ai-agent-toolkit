@@ -37,7 +37,7 @@ def test_imports():
 
 
 def test_wirers_are_the_supported_harnesses():
-    assert set(load().WIRERS) == {"claude-code", "codex", "cursor", "generic"}
+    assert set(load().WIRERS) == {"claude-code", "codex", "antigravity", "cursor", "generic"}
 
 
 def test_repo_display_is_under_this_repo():
@@ -254,7 +254,7 @@ def test_upgrade_refreshes_skills_only_without_explicit_ids(monkeypatch):
     refreshed = []
     monkeypatch.setattr(m, "_install_skills", lambda d: refreshed.append(d))
     m.cmd_upgrade(argparse.Namespace(tools=[]))
-    assert len(refreshed) == 2  # ~/.claude/skills + $CODEX_HOME/skills
+    assert len(refreshed) == 3  # ~/.claude/skills + $CODEX_HOME/skills + <agy>/skills
     refreshed.clear()
     m.cmd_upgrade(argparse.Namespace(tools=["grill"]))
     assert refreshed == []  # explicit ids → no skills refresh
@@ -344,3 +344,47 @@ def test_skip_list_is_honoured(tmp_path, monkeypatch):
     ids = [t["id"] for t in m.load_tools()]
     wanted = set(ids) - m.skipped_ids()
     assert "chrome-devtools" not in wanted
+
+
+def test_wire_antigravity_merges_mcp_and_keeps_foreign_servers(monkeypatch, tmp_path):
+    import json
+
+    m = load()
+    monkeypatch.setenv("AGY_CONFIG_HOME", str(tmp_path))
+    (tmp_path / "mcp_config.json").write_text(json.dumps({"mcpServers": {"mine": {"command": "keep"}}}))
+    monkeypatch.setattr(m.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(m, "_install_skills", lambda d: None)
+    monkeypatch.setattr(m, "_install_graphify_skill", lambda h: None)
+    monkeypatch.setattr(m, "skipped_ids", set)
+    monkeypatch.setattr(m, "resolved_env", lambda keys: {})
+    tools = [{"id": "aa", "mcp": {"command": "x", "args": ["1"]}, "env": {"K": "v"}}]
+    assert m.wire_antigravity(tools) == 0
+    servers = json.loads((tmp_path / "mcp_config.json").read_text())["mcpServers"]
+    assert servers["mine"] == {"command": "keep"}
+    assert servers["aa"] == {"command": "/bin/x", "args": ["1"], "env": {"K": "v"}}
+
+
+def test_wire_antigravity_tolerates_empty_mcp_file(monkeypatch, tmp_path):
+    import json
+
+    m = load()
+    monkeypatch.setenv("AGY_CONFIG_HOME", str(tmp_path))
+    (tmp_path / "mcp_config.json").write_text("")
+    monkeypatch.setattr(m.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(m, "_install_skills", lambda d: None)
+    monkeypatch.setattr(m, "_install_graphify_skill", lambda h: None)
+    monkeypatch.setattr(m, "skipped_ids", set)
+    assert m.wire_antigravity([]) == 0
+    assert json.loads((tmp_path / "mcp_config.json").read_text()) == {"mcpServers": {}}
+
+
+def test_unwire_antigravity_removes_only_managed_servers(monkeypatch, tmp_path):
+    import json
+
+    m = load()
+    ran, stripped, _ = _unwire_recorders(monkeypatch, m)
+    monkeypatch.setenv("AGY_CONFIG_HOME", str(tmp_path))
+    (tmp_path / "mcp_config.json").write_text(json.dumps({"mcpServers": {"aa": {}, "mine": {}}}))
+    assert m.cmd_unwire(argparse.Namespace(harness="antigravity")) == 0
+    assert list(json.loads((tmp_path / "mcp_config.json").read_text())["mcpServers"]) == ["mine"]
+    assert stripped == ["AGENTS.md"] and ran == []

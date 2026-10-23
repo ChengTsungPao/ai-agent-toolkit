@@ -367,7 +367,7 @@ def cmd_report(_args) -> int:
         print(yellow(f"missing (install yourself): {', '.join(missing_manual)}   →   see docs/"))
     if not missing:
         print(green("all tools installed"))
-    print(dim("wire a harness:  setup.py wire <claude-code|codex|cursor|generic>"))
+    print(dim("wire a harness:  setup.py wire <claude-code|codex|antigravity|cursor|generic>"))
     return 0
 
 
@@ -578,7 +578,7 @@ def env_repo_pointer() -> str:
         f"- **Report:** `uv run --python 3.12 {r}/scripts/setup.py report`\n"
         "- **Install:** list what is missing plus each command, ask the user "
         '*"confirm each"* or *"install all"*, then `setup.py install --each|--all`.\n'
-        "- **Wire a harness:** `setup.py wire <claude-code|codex|cursor|generic>` "
+        "- **Wire a harness:** `setup.py wire <claude-code|codex|antigravity|cursor|generic>` "
         "(`unwire` reverses it; `bootstrap` = install + wire in one go).\n"
         "- **Update everything:** `setup.py upgrade`.\n"
         f"- Per-entry docs: `{r}/docs/*.md`. Add things by editing "
@@ -589,6 +589,11 @@ def env_repo_pointer() -> str:
 
 def _codex_home() -> Path:
     return Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+
+
+def _agy_home() -> Path:
+    """Antigravity's global customization root (skills/, mcp_config.json, AGENTS.md)."""
+    return Path(os.environ.get("AGY_CONFIG_HOME", Path.home() / ".gemini" / "config"))
 
 
 def _install_guidelines(harness: str) -> None:
@@ -605,6 +610,9 @@ def _install_guidelines(harness: str) -> None:
         print(green(f"  guidelines → {home / 'AGENTS.md'} ({a}),  {home / 'CLAUDE.md'} ({c}, reference only)"))
     elif harness == "codex":
         p = _codex_home() / "AGENTS.md"
+        print(green(f"  guidelines → {p} ({upsert_block(p, body)})"))
+    elif harness == "antigravity":
+        p = _agy_home() / "AGENTS.md"
         print(green(f"  guidelines → {p} ({upsert_block(p, body)})"))
     elif harness == "cursor":
         print(dim(f"  guidelines: add {REPO / 'guidelines' / 'AGENTS.md'} as a project AGENTS.md"))
@@ -634,7 +642,12 @@ def _install_plugins(harness: str) -> None:
         print((green if rc == 0 else red)(f"  plugin {p['id']} {msg}"))
 
 
-_GRAPHIFY_PLATFORM = {"claude-code": "claude", "codex": "codex", "cursor": "cursor"}
+_GRAPHIFY_PLATFORM = {
+    "claude-code": "claude",
+    "codex": "codex",
+    "cursor": "cursor",
+    "antigravity": "antigravity-windows" if OS == "windows" else "antigravity",
+}
 
 
 def _install_graphify_skill(harness: str) -> None:
@@ -692,6 +705,41 @@ def wire_codex(tools) -> int:
     return 0
 
 
+def wire_antigravity(tools) -> int:
+    """Skills -> <agy>/skills, MCP servers merged into <agy>/mcp_config.json.
+
+    The MCP file is merged, never replaced: servers this repo does not manage
+    (hand-added ones) are left alone; only manifest ids are (re)written.
+    """
+    import json
+
+    if shutil.which("agy") is None:
+        print(red("  `agy` CLI not found — is Antigravity installed?"))
+        return 1
+    home = _agy_home()
+    _install_skills(home / "skills")
+    path = home / "mcp_config.json"
+    try:
+        cfg = json.loads(path.read_text(encoding="utf-8-sig").strip() or "{}") if path.exists() else {}
+    except ValueError:
+        print(red(f"  {path} is not valid JSON — fix or remove it, then re-run"))
+        return 1
+    servers = cfg.setdefault("mcpServers", {})
+    for t in _mcp_tools(tools):
+        command, arglist = mcp_spec(t)
+        entry = {"command": shutil.which(command) or command, "args": arglist}
+        env = {**t.get("env", {}), **resolved_env(env_required(t))}
+        if env:
+            entry["env"] = env
+        servers[t["id"]] = entry
+        print(green(f"  mcp    → {t['id']}") + dim(f"  ({path})"))
+        _warn_missing_env(t)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+    _install_graphify_skill("antigravity")
+    return 0
+
+
 def _print_bundled_skills() -> None:
     skills = bundled_skills()
     if skills:
@@ -735,6 +783,7 @@ def wire_generic(tools) -> int:
 WIRERS = {
     "claude-code": wire_claude_code,
     "codex": wire_codex,
+    "antigravity": wire_antigravity,
     "cursor": wire_cursor,
     "generic": wire_generic,
 }
@@ -824,7 +873,9 @@ def _wire(harness: str) -> int:
 # ── bootstrap ──────────────────────────────────────────────────────────────
 def _detected_harnesses() -> list[str]:
     """Harnesses whose CLI is on PATH that `wire` fully automates, in wire order."""
-    return [h for h, exe in (("claude-code", "claude"), ("codex", "codex")) if shutil.which(exe)]
+    return [
+        h for h, exe in (("claude-code", "claude"), ("codex", "codex"), ("antigravity", "agy")) if shutil.which(exe)
+    ]
 
 
 def cmd_bootstrap(args) -> int:
@@ -839,7 +890,7 @@ def cmd_bootstrap(args) -> int:
 
     harnesses = _detected_harnesses()
     if not harnesses:
-        print(yellow("\nno harness CLI on PATH (claude / codex) — install one, then: setup.py wire <harness>"))
+        print(yellow("\nno harness CLI on PATH (claude / codex / agy) — install one, then: setup.py wire <harness>"))
     for h in harnesses:
         _wire(h)
 
@@ -899,8 +950,12 @@ def cmd_upgrade(args) -> int:
             _install_graphify_skill(h)
     if not args.tools and (ext_skills() or bundled_skills()):
         print(bold("\nrefreshing skills ([[skill]] re-cloned = their upgrade)\n"))
-        for h, d in (("claude", Path.home() / ".claude" / "skills"), ("codex", _codex_home() / "skills")):
-            if shutil.which(h if h == "codex" else "claude"):
+        for h, exe, d in (
+            ("claude", "claude", Path.home() / ".claude" / "skills"),
+            ("codex", "codex", _codex_home() / "skills"),
+            ("antigravity", "agy", _agy_home() / "skills"),
+        ):
+            if shutil.which(exe):
                 print(dim(h))
                 _install_skills(d)
     print(dim("\nplugins auto-update through their harness (e.g. `claude plugin update`)."))
@@ -922,6 +977,32 @@ def _strip_block(path: Path) -> bool:
     return True
 
 
+def _unwire_antigravity(mcp_ids: list[str]) -> None:
+    import json
+
+    home = _agy_home()
+    path = home / "mcp_config.json"
+    if path.exists():
+        try:
+            cfg = json.loads(path.read_text(encoding="utf-8-sig").strip() or "{}")
+        except ValueError:
+            print(yellow(f"  {path} is not valid JSON — left untouched"))
+            cfg = None
+        if cfg is not None:
+            servers = cfg.get("mcpServers", {})
+            for i in mcp_ids:
+                if servers.pop(i, None) is not None:
+                    print(dim(f"  mcp removed: {i}"))
+            path.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+    names = [s.name for s in bundled_skills()]
+    names += [Path(sub).name for s in ext_skills() for sub in s.get("paths", [s["id"]])]
+    for n in names:
+        if (home / "skills" / n).exists():
+            shutil.rmtree(home / "skills" / n, ignore_errors=True)
+            print(dim(f"  skill removed: {n}"))
+    print(dim(f"  guidelines block: AGENTS.md removed={_strip_block(home / 'AGENTS.md')}"))
+
+
 def cmd_unwire(args) -> int:
     h = args.harness
     if h not in WIRERS:
@@ -930,7 +1011,9 @@ def cmd_unwire(args) -> int:
     print(bold(f"\nremoving ai-dev-env wiring from {h}\n"))
     mcp_ids = [t["id"] for t in load_tools() if t.get("mcp")]
 
-    if h in ("claude-code", "codex"):
+    if h == "antigravity":
+        _unwire_antigravity(mcp_ids)
+    elif h in ("claude-code", "codex"):
         remove = "claude mcp remove {} -s user" if h == "claude-code" else "codex mcp remove {}"
         for i in mcp_ids:
             subprocess.run(remove.format(i), shell=True, capture_output=True)
@@ -983,7 +1066,10 @@ def cmd_skills(args) -> int:
     if args.harness in (None, "codex") and shutil.which("codex"):
         print(dim("codex"))
         _install_skills(_codex_home() / "skills")
-    if args.harness and args.harness not in ("claude-code", "codex"):
+    if args.harness in (None, "antigravity") and shutil.which("agy"):
+        print(dim("antigravity"))
+        _install_skills(_agy_home() / "skills")
+    if args.harness and args.harness not in ("claude-code", "codex", "antigravity"):
         _print_bundled_skills()
     return 0
 
@@ -1065,7 +1151,7 @@ def main() -> int:
     pg.set_defaults(fn=cmd_guidelines, harness=None)
 
     ps = sub.add_parser("skills", help="install bundled skills/ into a harness")
-    ps.add_argument("harness", nargs="?", choices=list(WIRERS), help="default: claude-code + codex")
+    ps.add_argument("harness", nargs="?", choices=list(WIRERS), help="default: claude-code + codex + antigravity")
     ps.set_defaults(fn=cmd_skills, harness=None)
 
     pp = sub.add_parser("plugins", help="install external plugin ecosystems (e.g. superpowers)")
