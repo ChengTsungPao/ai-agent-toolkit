@@ -819,7 +819,7 @@ def _wire_antigravity_remote_control(home: Path) -> None:
     else:
         print(dim(f"  remote-control → instance name '{instance_name}' configured"))
     print(dim("    manage & control sessions: https://antigravity.google.com/"))
-    print(dim(f"    (change instance name anytime: agy remote-control start --name <custom-name>)"))
+    print(dim("    (change instance name anytime: agy remote-control start --name <custom-name>)"))
 
 
 def _print_bundled_skills() -> None:
