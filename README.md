@@ -17,14 +17,14 @@ git clone https://github.com/ChengTsungPao/ai-dev-env ~/ai-dev-env
 ```
 
 ```powershell
-# Windows
+# Windows (if script execution is disabled on fresh Windows: Set-ExecutionPolicy RemoteSigned -Scope CurrentUser)
 git clone https://github.com/ChengTsungPao/ai-dev-env $HOME\ai-dev-env
 & $HOME\ai-dev-env\scripts\install.ps1
 & $HOME\ai-dev-env\scripts\install.ps1 bootstrap
 ```
 
-`bootstrap` asks *all vs confirm-each*, installs, then wires Claude Code / Codex
-if their CLI is present. Or drive the steps yourself: `install` → `wire
+`bootstrap` asks *all vs confirm-each*, installs, then wires Claude Code / Codex /
+Antigravity if their CLI is present. Or drive the steps yourself: `install` → `wire
 <harness>`. Fill any secrets into `~/.ai-dev-env/config.toml` and re-run `wire`.
 
 Only prerequisite is [uv](https://docs.astral.sh/uv/) — the bootstrap installs
