@@ -690,7 +690,7 @@ def _resolve_npm_shim(cmd: str, args: list[str]) -> tuple[str, list[str]]:
     # 1. npm standard shim: "%dp0%\node_modules\..."
     m = re.search(r'%dp0%\\(node_modules\\[^\s"\']+)', content, re.IGNORECASE)
     if m:
-        rel_path = m.group(1).rstrip('"\'')
+        rel_path = m.group(1).rstrip("\"'")
         script = dp0 / rel_path
         if script.exists():
             node_exe = shutil.which("node") or "node"
