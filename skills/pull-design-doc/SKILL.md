@@ -42,10 +42,11 @@ Use the `ask_question` tool to prompt the user:
 ```
 
 ### Step 2: List & Ask for Specific Design Doc
-Once the ecosystem is chosen:
-1. Locate the **`Design Doc`** folder inside that ecosystem (e.g. for `Google AI`, navigate directly to `Google AI/Design Doc` with folder ID `1qLKJRoJflN2uiz4FUqCgdqKi-XMeipPt`).
-2. Run `gdrive readonly ls <DESIGN_DOC_FOLDER_ID>` (or search) to get the up-to-date list of design documents (including Google Docs and Markdown files).
-3. Prompt the user via `ask_question` to choose the specific file.
+Once the ecosystem is chosen, resolve the target folder using the following priority:
+1. **Exact Match First**: Search for a subfolder named exactly `Design Doc` inside the selected ecosystem folder (e.g. `Google AI/Design Doc`, Folder ID: `1qLKJRoJflN2uiz4FUqCgdqKi-XMeipPt`).
+2. **Keyword Match Fallback**: If no exact `Design Doc` folder exists, search for subfolders whose names contain the keyword `Design Doc` (e.g., `gdrive readonly search --parent-id <ECOSYSTEM_ID> --name-contains "Design Doc" --type folder`).
+3. **Document Listing**: Once the folder is resolved, run `gdrive readonly ls <RESOLVED_FOLDER_ID>` to get the up-to-date list of design documents (including Google Docs and Markdown files).
+4. **Interactive Prompt**: Prompt the user via `ask_question` with the retrieved documents.
 
 Example for `Google AI`:
 ```json
