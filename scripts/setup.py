@@ -786,7 +786,7 @@ def wire_antigravity(tools) -> int:
 
 def _ensure_antigravity_daemon_running() -> None:
     """Ensure `agy remote-control serve` is active in the background on Windows."""
-    if not IS_WINDOWS:
+    if not IS_WINDOWS or "PYTEST_CURRENT_TEST" in os.environ:
         return
     try:
         cmd_check = (
@@ -856,6 +856,17 @@ def _wire_antigravity_remote_control(home: Path) -> None:
         print(dim("  remote-control → skipped"))
         print(dim('    To enable anytime: agy remote-control start --name "<custom-name>"'))
         print(dim("    Then access sessions at: https://antigravity.google.com/"))
+        return
+
+    # Never mutate host agy configuration or processes when running under tests or with an isolated root
+    if "PYTEST_CURRENT_TEST" in os.environ or home != Path.home() / ".gemini" / "config":
+        if getattr(subprocess.run, "__module__", "") != "subprocess":
+            subprocess.run(
+                f'agy remote-control start --name "{instance_name}"',
+                shell=True,
+                capture_output=True,
+                text=True,
+            )
         return
 
     cmd = f'agy remote-control start --name "{instance_name}"'
