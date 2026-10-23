@@ -784,12 +784,35 @@ def wire_antigravity(tools) -> int:
     return 0
 
 
-def _wire_antigravity_remote_control(home: Path) -> None:
-    """Configure Antigravity Remote Control daemon with a general instance name.
+def _ensure_antigravity_daemon_running() -> None:
+    """Ensure `agy remote-control serve` is active in the background on Windows."""
+    if not IS_WINDOWS:
+        return
+    try:
+        cmd_check = (
+            'powershell -Command "Get-CimInstance Win32_Process -Filter \\"name like \'%agy%\'\\" | '
+            "Where-Object { $_.CommandLine -like '*remote-control serve*' } | "
+            'Measure-Object | Select-Object -ExpandProperty Count"'
+        )
+        res = subprocess.run(cmd_check, shell=True, capture_output=True, text=True)
+        count = int(res.stdout.strip() or "0")
+        if count == 0:
+            agy_exe = shutil.which("agy")
+            if agy_exe:
+                spawn_cmd = (
+                    f'powershell -Command "Invoke-CimMethod -ClassName Win32_Process -MethodName Create '
+                    f'-Arguments @{{CommandLine = \'\\"{agy_exe}\\" remote-control serve\'}}"'
+                )
+                subprocess.run(spawn_cmd, shell=True, capture_output=True, text=True)
+    except Exception:
+        pass
 
-    Ensures remoteControlHostname in <home>/config.json and starts the daemon so
-    sessions are grouped under one persistent machine rather than creating ad-hoc
-    ephemeral slugs for each session.
+
+def _wire_antigravity_remote_control(home: Path) -> None:
+    """Configure Antigravity Remote Control daemon with an instance name.
+
+    Prompts the user during interactive setup to choose whether to enable Remote Control
+    and which instance name to use. If declined, prints instructions on how to enable it later.
     """
     import json
 
@@ -803,17 +826,41 @@ def _wire_antigravity_remote_control(home: Path) -> None:
 
     user_settings = cfg.setdefault("userSettings", {})
     existing = user_settings.get("remoteControlHostname") or user_settings.get("cliRemoteControlHostname")
-    instance_name = os.environ.get("AGY_INSTANCE_NAME") or existing or "Dev-Workstation"
+    default_name = os.environ.get("AGY_INSTANCE_NAME") or existing or "Dev-Workstation"
 
-    user_settings["remoteControlEnabled"] = True
+    is_interactive = sys.stdin.isatty()
+    enabled = True
+    instance_name = default_name
+
+    if is_interactive:
+        ans = input("Enable Antigravity Remote Control (https://antigravity.google.com)? [Y/n] ").strip().lower()
+        if ans in ("n", "no"):
+            enabled = False
+        else:
+            name_ans = input(f"Instance name for Remote Control [{default_name}]: ").strip()
+            if name_ans:
+                instance_name = name_ans
+    else:
+        env_enable = os.environ.get("AGY_ENABLE_REMOTE_CONTROL", "").lower()
+        if env_enable in ("0", "false", "no", "n"):
+            enabled = False
+
+    user_settings["remoteControlEnabled"] = enabled
     user_settings["remoteControlHostname"] = instance_name
     user_settings["cliRemoteControlHostname"] = instance_name
 
     cfg_path.parent.mkdir(parents=True, exist_ok=True)
     cfg_path.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
 
+    if not enabled:
+        print(dim("  remote-control → skipped"))
+        print(dim('    To enable anytime: agy remote-control start --name "<custom-name>"'))
+        print(dim("    Then access sessions at: https://antigravity.google.com/"))
+        return
+
     cmd = f'agy remote-control start --name "{instance_name}"'
     r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    _ensure_antigravity_daemon_running()
     if r.returncode == 0:
         print(green(f"  remote-control → daemon started as '{instance_name}'"))
     else:
