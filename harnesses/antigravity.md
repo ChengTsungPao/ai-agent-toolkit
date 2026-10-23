@@ -12,6 +12,7 @@ Everything lands in Antigravity's global config root, `~/.gemini/config/`
 - graphify: `graphify install --platform antigravity[-windows]` (if installed)
 - remote control: sets up persistent daemon with general instance name (`Dev-Workstation`)
   in `<root>/config.json` so sessions don't produce ephemeral connections.
+  Control sessions at https://antigravity.google.com/
   (change anytime: `agy remote-control start --name <name>`)
 - plugins: none — `superpowers` has no Antigravity install path
 
