@@ -666,45 +666,6 @@ def _install_graphify_skill(harness: str) -> None:
     print((green if rc == 0 else yellow)(f"  graphify skill ({plat}) {tail}"))
 
 
-def wire_claude_code(tools) -> int:
-    if shutil.which("claude") is None:
-        print(red("  `claude` CLI not found — is Claude Code installed?"))
-        return 1
-    _install_skills(Path.home() / ".claude" / "skills")
-    for t in _mcp_tools(tools):
-        command, arglist = mcp_spec(t)
-        command = shutil.which(command) or command  # absolute path — don't rely on the harness's PATH
-        args = " ".join(arglist)
-        # -e/--env is variadic, so it must come *after* the server name.
-        env, env_masked = _mcp_env(t, "-e")
-        subprocess.run(f"claude mcp remove {t['id']} -s user", shell=True, capture_output=True)
-        base = f"claude mcp add --scope user {t['id']} {{}} -- {command} {args}"
-        run(" ".join(base.format(env).split()), display=" ".join(base.format(env_masked).split()))
-        _warn_missing_env(t)
-    _install_graphify_skill("claude-code")
-    return 0
-
-
-def wire_codex(tools) -> int:
-    if shutil.which("codex") is None:
-        print(red("  `codex` CLI not found."))
-        return 1
-    codex_home = _codex_home()
-    _install_skills(codex_home / "skills")
-    for t in _mcp_tools(tools):
-        command, arglist = mcp_spec(t)
-        args = " ".join(arglist)
-        env, env_masked = _mcp_env(t, "--env")
-        cmd = shutil.which(command) or command
-        # `codex mcp add [--env K=V] <name> -- <cmd> <args>` — overwrites cleanly.
-        base = f"codex mcp add {{}} {t['id']} -- {cmd} {args}"
-        if run(" ".join(base.format(env).split()), display=" ".join(base.format(env_masked).split())) != 0:
-            print(yellow(f"  `codex mcp add` failed for {t['id']} — add manually to {codex_home}/config.toml"))
-        _warn_missing_env(t)
-    _install_graphify_skill("codex")
-    return 0
-
-
 def _resolve_npm_shim(cmd: str, args: list[str]) -> tuple[str, list[str]]:
     """On Windows, resolve `cmd /c <npm_tool>` to `node <path/to/cli.js>`.
 
@@ -735,6 +696,47 @@ def _resolve_npm_shim(cmd: str, args: list[str]) -> tuple[str, list[str]]:
         return cmd, args
     node_exe = shutil.which("node") or "node"
     return node_exe, [str(script)] + list(args[2:])
+
+
+def wire_claude_code(tools) -> int:
+    if shutil.which("claude") is None:
+        print(red("  `claude` CLI not found — is Claude Code installed?"))
+        return 1
+    _install_skills(Path.home() / ".claude" / "skills")
+    for t in _mcp_tools(tools):
+        command, arglist = mcp_spec(t)
+        command, arglist = _resolve_npm_shim(command, arglist)
+        command = shutil.which(command) or command  # absolute path — don't rely on the harness's PATH
+        args = " ".join(arglist)
+        # -e/--env is variadic, so it must come *after* the server name.
+        env, env_masked = _mcp_env(t, "-e")
+        subprocess.run(f"claude mcp remove {t['id']} -s user", shell=True, capture_output=True)
+        base = f"claude mcp add --scope user {t['id']} {{}} -- {command} {args}"
+        run(" ".join(base.format(env).split()), display=" ".join(base.format(env_masked).split()))
+        _warn_missing_env(t)
+    _install_graphify_skill("claude-code")
+    return 0
+
+
+def wire_codex(tools) -> int:
+    if shutil.which("codex") is None:
+        print(red("  `codex` CLI not found."))
+        return 1
+    codex_home = _codex_home()
+    _install_skills(codex_home / "skills")
+    for t in _mcp_tools(tools):
+        command, arglist = mcp_spec(t)
+        command, arglist = _resolve_npm_shim(command, arglist)
+        args = " ".join(arglist)
+        env, env_masked = _mcp_env(t, "--env")
+        cmd = shutil.which(command) or command
+        # `codex mcp add [--env K=V] <name> -- <cmd> <args>` — overwrites cleanly.
+        base = f"codex mcp add {{}} {t['id']} -- {cmd} {args}"
+        if run(" ".join(base.format(env).split()), display=" ".join(base.format(env_masked).split())) != 0:
+            print(yellow(f"  `codex mcp add` failed for {t['id']} — add manually to {codex_home}/config.toml"))
+        _warn_missing_env(t)
+    _install_graphify_skill("codex")
+    return 0
 
 
 def wire_antigravity(tools) -> int:
