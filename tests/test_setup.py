@@ -388,3 +388,60 @@ def test_unwire_antigravity_removes_only_managed_servers(monkeypatch, tmp_path):
     assert m.cmd_unwire(argparse.Namespace(harness="antigravity")) == 0
     assert list(json.loads((tmp_path / "mcp_config.json").read_text())["mcpServers"]) == ["mine"]
     assert stripped == ["AGENTS.md"] and ran == []
+
+
+def test_wire_antigravity_configures_remote_control_default(monkeypatch, tmp_path):
+    import json
+
+    m = load()
+    monkeypatch.setenv("AGY_CONFIG_HOME", str(tmp_path))
+    monkeypatch.delenv("AGY_INSTANCE_NAME", raising=False)
+    monkeypatch.setattr(m.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(m, "_install_skills", lambda d: None)
+    monkeypatch.setattr(m, "_install_graphify_skill", lambda h: None)
+    monkeypatch.setattr(m, "skipped_ids", set)
+    monkeypatch.setattr(m.subprocess, "run", lambda *a, **kw: type("R", (), {"returncode": 0})())
+
+    assert m.wire_antigravity([]) == 0
+    cfg = json.loads((tmp_path / "config.json").read_text())
+    assert cfg["userSettings"]["remoteControlEnabled"] is True
+    assert cfg["userSettings"]["remoteControlHostname"] == "Dev-Workstation"
+    assert cfg["userSettings"]["cliRemoteControlHostname"] == "Dev-Workstation"
+
+
+def test_wire_antigravity_preserves_existing_remote_control_name(monkeypatch, tmp_path):
+    import json
+
+    m = load()
+    monkeypatch.setenv("AGY_CONFIG_HOME", str(tmp_path))
+    monkeypatch.delenv("AGY_INSTANCE_NAME", raising=False)
+    existing = {"userSettings": {"remoteControlHostname": "My-Custom-PC"}}
+    (tmp_path / "config.json").write_text(json.dumps(existing))
+    monkeypatch.setattr(m.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(m, "_install_skills", lambda d: None)
+    monkeypatch.setattr(m, "_install_graphify_skill", lambda h: None)
+    monkeypatch.setattr(m, "skipped_ids", set)
+    monkeypatch.setattr(m.subprocess, "run", lambda *a, **kw: type("R", (), {"returncode": 0})())
+
+    assert m.wire_antigravity([]) == 0
+    cfg = json.loads((tmp_path / "config.json").read_text())
+    assert cfg["userSettings"]["remoteControlHostname"] == "My-Custom-PC"
+    assert cfg["userSettings"]["cliRemoteControlHostname"] == "My-Custom-PC"
+
+
+def test_wire_antigravity_honours_agy_instance_name_env(monkeypatch, tmp_path):
+    import json
+
+    m = load()
+    monkeypatch.setenv("AGY_CONFIG_HOME", str(tmp_path))
+    monkeypatch.setenv("AGY_INSTANCE_NAME", "Office-Rig")
+    monkeypatch.setattr(m.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(m, "_install_skills", lambda d: None)
+    monkeypatch.setattr(m, "_install_graphify_skill", lambda h: None)
+    monkeypatch.setattr(m, "skipped_ids", set)
+    monkeypatch.setattr(m.subprocess, "run", lambda *a, **kw: type("R", (), {"returncode": 0})())
+
+    assert m.wire_antigravity([]) == 0
+    cfg = json.loads((tmp_path / "config.json").read_text())
+    assert cfg["userSettings"]["remoteControlHostname"] == "Office-Rig"
+    assert cfg["userSettings"]["cliRemoteControlHostname"] == "Office-Rig"

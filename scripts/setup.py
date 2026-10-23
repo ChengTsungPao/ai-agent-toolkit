@@ -666,6 +666,48 @@ def _install_graphify_skill(harness: str) -> None:
     print((green if rc == 0 else yellow)(f"  graphify skill ({plat}) {tail}"))
 
 
+def _resolve_npm_shim(cmd: str, args: list[str]) -> tuple[str, list[str]]:
+    """On Windows, resolve `cmd /c <npm_tool>` to `node <path/to/cli.js>`.
+
+    Spawning `cmd.exe` from a GUI process like Antigravity flashes a visible
+    console window. Direct `node` invocation runs silently without a window.
+    """
+    import re
+
+    if not IS_WINDOWS or cmd.lower() not in ("cmd", "cmd.exe"):
+        return cmd, args
+    if len(args) < 2 or args[0].lower() != "/c":
+        return cmd, args
+    target = args[1]
+    target_cmd = shutil.which(target)
+    if not target_cmd or not target_cmd.lower().endswith(".cmd"):
+        return cmd, args
+    try:
+        content = Path(target_cmd).read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return cmd, args
+    dp0 = Path(target_cmd).parent
+    # 1. npm standard shim: "%dp0%\node_modules\..."
+    m = re.search(r'%dp0%\\(node_modules\\[^\s"\']+)', content, re.IGNORECASE)
+    if m:
+        rel_path = m.group(1).rstrip("\"'")
+        script = dp0 / rel_path
+        if script.exists():
+            node_exe = shutil.which("node") or "node"
+            return node_exe, [str(script)] + list(args[2:])
+    # 2. codegraph / other node wrappers (e.g. "%~dp0..\lib\dist\bin\codegraph.js")
+    m2 = re.search(r'["\']?%~?dp0\\?([^\s"\']+\.js)["\']?', content, re.IGNORECASE)
+    if m2:
+        script = (dp0 / m2.group(1)).resolve()
+        if script.exists():
+            node_exe = shutil.which("node") or "node"
+            extra_flags = []
+            if "--liftoff-only" in content:
+                extra_flags += ["--liftoff-only", "--disable-warning=ExperimentalWarning"]
+            return node_exe, extra_flags + [str(script)] + list(args[2:])
+    return cmd, args
+
+
 def wire_claude_code(tools) -> int:
     if shutil.which("claude") is None:
         print(red("  `claude` CLI not found — is Claude Code installed?"))
@@ -727,6 +769,7 @@ def wire_antigravity(tools) -> int:
     servers = cfg.setdefault("mcpServers", {})
     for t in _mcp_tools(tools):
         command, arglist = mcp_spec(t)
+        command, arglist = _resolve_npm_shim(command, arglist)
         entry = {"command": shutil.which(command) or command, "args": arglist}
         env = {**t.get("env", {}), **resolved_env(env_required(t))}
         if env:
@@ -737,7 +780,46 @@ def wire_antigravity(tools) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
     _install_graphify_skill("antigravity")
+    _wire_antigravity_remote_control(home)
     return 0
+
+
+def _wire_antigravity_remote_control(home: Path) -> None:
+    """Configure Antigravity Remote Control daemon with a general instance name.
+
+    Ensures remoteControlHostname in <home>/config.json and starts the daemon so
+    sessions are grouped under one persistent machine rather than creating ad-hoc
+    ephemeral slugs for each session.
+    """
+    import json
+
+    cfg_path = home / "config.json"
+    cfg = {}
+    if cfg_path.exists():
+        try:
+            cfg = json.loads(cfg_path.read_text(encoding="utf-8-sig").strip() or "{}")
+        except ValueError:
+            cfg = {}
+
+    user_settings = cfg.setdefault("userSettings", {})
+    existing = user_settings.get("remoteControlHostname") or user_settings.get("cliRemoteControlHostname")
+    instance_name = os.environ.get("AGY_INSTANCE_NAME") or existing or "Dev-Workstation"
+
+    user_settings["remoteControlEnabled"] = True
+    user_settings["remoteControlHostname"] = instance_name
+    user_settings["cliRemoteControlHostname"] = instance_name
+
+    cfg_path.parent.mkdir(parents=True, exist_ok=True)
+    cfg_path.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+
+    cmd = f'agy remote-control start --name "{instance_name}"'
+    r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    if r.returncode == 0:
+        print(green(f"  remote-control → daemon started as '{instance_name}'"))
+    else:
+        print(dim(f"  remote-control → instance name '{instance_name}' configured"))
+    print(dim("    manage & control sessions: https://antigravity.google.com/"))
+    print(dim("    (change instance name anytime: agy remote-control start --name <custom-name>)"))
 
 
 def _print_bundled_skills() -> None:
