@@ -2,7 +2,7 @@
 
 This repo provisions a personal AI dev environment: it installs a fixed set of
 tools and wires them — plus skills, plugins, and always-on guidelines — into
-whatever AI harness you run (Claude Code, Codex, Cursor), on
+whatever AI harness you run (Claude Code, Codex, Antigravity, Cursor), on
 Windows / macOS / Linux.
 
 Also follow the behavioural rules in [`guidelines/AGENTS.md`](guidelines/AGENTS.md).
@@ -36,7 +36,7 @@ the top of that file:
 
 Your **own** skills go as committed folders under `skills/<name>/` (with a
 `SKILL.md`); `wire` / `skills` copies them into `~/.claude/skills/` and
-`$CODEX_HOME/skills/`. Cursor has no skills dir — its paths are printed for
+`$CODEX_HOME/skills/` and `~/.gemini/config/skills/`. Cursor has no skills dir — its paths are printed for
 manual wiring.
 
 `setup.py` commands: `report` (default) · `bootstrap` · `install` · `upgrade` ·
@@ -46,9 +46,9 @@ Codex fully (including `graphify install`); for Cursor / generic it prints the
 MCP JSON and skill paths to apply by hand. `unwire` reverses `wire` (MCP + skill
 dirs + guidelines block) but never touches an installed CLI or the config.
 
-Gemini CLI and Google Antigravity are **not** wired by this repo (no reliable
-global config path known / not in active use). Add them to `WIRERS` if that
-changes.
+Google Antigravity (`agy`) is wired via `wire antigravity` into `~/.gemini/config/`
+(skills, merged `mcp_config.json`, `AGENTS.md`; see `harnesses/antigravity.md`).
+Gemini CLI is **not** wired. Add harnesses to `WIRERS`.
 
 There is deliberately **no `ai-dev-env` skill** — an agent learns about the repo
 from the generated "Environment repo" section in the installed `AGENTS.md`, and
