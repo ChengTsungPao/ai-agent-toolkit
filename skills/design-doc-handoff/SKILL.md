@@ -1,9 +1,9 @@
 ---
-name: pull-design-doc
-description: Pull and review design documents from Google Drive across Google AI, Claude AI, and Meta AI folders with interactive selection.
+name: design-doc-handoff
+description: Pull, handoff, and review design documents from Google Drive across Google AI, Claude AI, and Meta AI folders with interactive selection.
 ---
 
-# Pull Design Doc from Google Drive
+# Design Doc Handoff from Google Drive
 
 This skill guides the agent to interactively select and download design documents from Google Drive into the workspace.
 
