@@ -687,15 +687,25 @@ def _resolve_npm_shim(cmd: str, args: list[str]) -> tuple[str, list[str]]:
     except OSError:
         return cmd, args
     dp0 = Path(target_cmd).parent
+    # 1. npm standard shim: "%dp0%\node_modules\..."
     m = re.search(r'%dp0%\\(node_modules\\[^\s"\']+)', content, re.IGNORECASE)
-    if not m:
-        return cmd, args
-    rel_path = m.group(1).rstrip('"\'')
-    script = dp0 / rel_path
-    if not script.exists():
-        return cmd, args
-    node_exe = shutil.which("node") or "node"
-    return node_exe, [str(script)] + list(args[2:])
+    if m:
+        rel_path = m.group(1).rstrip('"\'')
+        script = dp0 / rel_path
+        if script.exists():
+            node_exe = shutil.which("node") or "node"
+            return node_exe, [str(script)] + list(args[2:])
+    # 2. codegraph / other node wrappers (e.g. "%~dp0..\lib\dist\bin\codegraph.js")
+    m2 = re.search(r'["\']?%~?dp0\\?([^\s"\']+\.js)["\']?', content, re.IGNORECASE)
+    if m2:
+        script = (dp0 / m2.group(1)).resolve()
+        if script.exists():
+            node_exe = shutil.which("node") or "node"
+            extra_flags = []
+            if "--liftoff-only" in content:
+                extra_flags += ["--liftoff-only", "--disable-warning=ExperimentalWarning"]
+            return node_exe, extra_flags + [str(script)] + list(args[2:])
+    return cmd, args
 
 
 def wire_claude_code(tools) -> int:
