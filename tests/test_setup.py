@@ -445,3 +445,59 @@ def test_wire_antigravity_honours_agy_instance_name_env(monkeypatch, tmp_path):
     cfg = json.loads((tmp_path / "config.json").read_text())
     assert cfg["userSettings"]["remoteControlHostname"] == "Office-Rig"
     assert cfg["userSettings"]["cliRemoteControlHostname"] == "Office-Rig"
+
+
+def test_wire_antigravity_declines_remote_control_interactive(monkeypatch, tmp_path):
+    import json
+
+    m = load()
+    monkeypatch.setenv("AGY_CONFIG_HOME", str(tmp_path))
+    monkeypatch.delenv("AGY_INSTANCE_NAME", raising=False)
+    monkeypatch.setattr(m.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda prompt="": "n")
+    monkeypatch.setattr(m.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(m, "_install_skills", lambda d: None)
+    monkeypatch.setattr(m, "_install_graphify_skill", lambda h: None)
+    monkeypatch.setattr(m, "skipped_ids", set)
+
+    assert m.wire_antigravity([]) == 0
+    cfg = json.loads((tmp_path / "config.json").read_text())
+    assert cfg["userSettings"]["remoteControlEnabled"] is False
+
+
+def test_wire_antigravity_accepts_custom_name_interactive(monkeypatch, tmp_path):
+    import json
+
+    m = load()
+    monkeypatch.setenv("AGY_CONFIG_HOME", str(tmp_path))
+    monkeypatch.delenv("AGY_INSTANCE_NAME", raising=False)
+    monkeypatch.setattr(m.sys.stdin, "isatty", lambda: True)
+    inputs = iter(["y", "Custom-Studio"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+    monkeypatch.setattr(m.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(m, "_install_skills", lambda d: None)
+    monkeypatch.setattr(m, "_install_graphify_skill", lambda h: None)
+    monkeypatch.setattr(m, "skipped_ids", set)
+    monkeypatch.setattr(m.subprocess, "run", lambda *a, **kw: type("R", (), {"returncode": 0})())
+
+    assert m.wire_antigravity([]) == 0
+    cfg = json.loads((tmp_path / "config.json").read_text())
+    assert cfg["userSettings"]["remoteControlEnabled"] is True
+    assert cfg["userSettings"]["remoteControlHostname"] == "Custom-Studio"
+    assert cfg["userSettings"]["cliRemoteControlHostname"] == "Custom-Studio"
+
+
+def test_wire_antigravity_declines_remote_control_via_env(monkeypatch, tmp_path):
+    import json
+
+    m = load()
+    monkeypatch.setenv("AGY_CONFIG_HOME", str(tmp_path))
+    monkeypatch.setenv("AGY_ENABLE_REMOTE_CONTROL", "0")
+    monkeypatch.setattr(m.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(m, "_install_skills", lambda d: None)
+    monkeypatch.setattr(m, "_install_graphify_skill", lambda h: None)
+    monkeypatch.setattr(m, "skipped_ids", set)
+
+    assert m.wire_antigravity([]) == 0
+    cfg = json.loads((tmp_path / "config.json").read_text())
+    assert cfg["userSettings"]["remoteControlEnabled"] is False

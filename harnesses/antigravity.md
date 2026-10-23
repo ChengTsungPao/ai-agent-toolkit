@@ -10,10 +10,10 @@ Everything lands in Antigravity's global config root, `~/.gemini/config/`
   removed; only manifest ids are rewritten. Commands are resolved to absolute paths.
 - guidelines: full text → `<root>/AGENTS.md` (marker-delimited block)
 - graphify: `graphify install --platform antigravity[-windows]` (if installed)
-- remote control: sets up persistent daemon with general instance name (`Dev-Workstation`)
-  in `<root>/config.json` so sessions don't produce ephemeral connections.
+- remote control: prompts during wire/setup to enable Remote Control with an instance name
+  (defaults to existing or `Dev-Workstation`) and starts the daemon immediately; if skipped,
+  prints instructions on how to enable anytime via `agy remote-control start --name <name>`.
   Control sessions at https://antigravity.google.com/
-  (change anytime: `agy remote-control start --name <name>`)
 - plugins: none — `superpowers` has no Antigravity install path
 
 ## Verify
