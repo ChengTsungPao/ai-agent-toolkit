@@ -357,6 +357,7 @@ def test_wire_antigravity_merges_mcp_and_keeps_foreign_servers(monkeypatch, tmp_
     monkeypatch.setattr(m, "_install_graphify_skill", lambda h: None)
     monkeypatch.setattr(m, "skipped_ids", set)
     monkeypatch.setattr(m, "resolved_env", lambda keys: {})
+    monkeypatch.setattr(m.subprocess, "run", lambda *a, **kw: type("R", (), {"returncode": 0})())
     tools = [{"id": "aa", "mcp": {"command": "x", "args": ["1"]}, "env": {"K": "v"}}]
     assert m.wire_antigravity(tools) == 0
     servers = json.loads((tmp_path / "mcp_config.json").read_text())["mcpServers"]
@@ -374,6 +375,7 @@ def test_wire_antigravity_tolerates_empty_mcp_file(monkeypatch, tmp_path):
     monkeypatch.setattr(m, "_install_skills", lambda d: None)
     monkeypatch.setattr(m, "_install_graphify_skill", lambda h: None)
     monkeypatch.setattr(m, "skipped_ids", set)
+    monkeypatch.setattr(m.subprocess, "run", lambda *a, **kw: type("R", (), {"returncode": 0})())
     assert m.wire_antigravity([]) == 0
     assert json.loads((tmp_path / "mcp_config.json").read_text()) == {"mcpServers": {}}
 
@@ -459,6 +461,7 @@ def test_wire_antigravity_declines_remote_control_interactive(monkeypatch, tmp_p
     monkeypatch.setattr(m, "_install_skills", lambda d: None)
     monkeypatch.setattr(m, "_install_graphify_skill", lambda h: None)
     monkeypatch.setattr(m, "skipped_ids", set)
+    monkeypatch.setattr(m.subprocess, "run", lambda *a, **kw: type("R", (), {"returncode": 0})())
 
     assert m.wire_antigravity([]) == 0
     cfg = json.loads((tmp_path / "config.json").read_text())
@@ -497,6 +500,7 @@ def test_wire_antigravity_declines_remote_control_via_env(monkeypatch, tmp_path)
     monkeypatch.setattr(m, "_install_skills", lambda d: None)
     monkeypatch.setattr(m, "_install_graphify_skill", lambda h: None)
     monkeypatch.setattr(m, "skipped_ids", set)
+    monkeypatch.setattr(m.subprocess, "run", lambda *a, **kw: type("R", (), {"returncode": 0})())
 
     assert m.wire_antigravity([]) == 0
     cfg = json.loads((tmp_path / "config.json").read_text())
