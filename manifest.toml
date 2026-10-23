@@ -192,11 +192,15 @@ default = "npm install -g @playwright/mcp"   # needs Node.js / npm; bundles play
 command = "playwright-mcp"
 # --browser chrome reuses the system Chrome channel — no ~150 MB Playwright
 # browser download. For Firefox / WebKit: `npx playwright install firefox webkit`.
-args    = ["--browser", "chrome"]
+# --extension attaches to your running browser through the Playwright MCP Bridge
+# extension (your logins / profile); it needs the extension token below.
+args    = ["--extension", "--browser", "msedge"]
+[tool.mcp.env_required]
+PLAYWRIGHT_MCP_EXTENSION_TOKEN = "Token shown by the Playwright MCP Bridge browser extension (extension page -> copy token). Needed for --extension mode."
 [tool.mcp.windows]
 # npm's global bin is a .cmd shim a harness can't spawn directly — go through cmd.
 command = "cmd"
-args    = ["/c", "playwright-mcp", "--browser", "chrome"]
+args    = ["/c", "playwright-mcp", "--extension", "--browser", "msedge"]
 [tool.usage]
 short = "Ask the agent to drive a browser: open a URL, click / fill a form, wait for an element, screenshot, or generate a Playwright test. Add `--headless` for no window, `--device \"iPhone 15\"` to emulate. Needs the chosen browser installed (system Chrome by default). No token."
 
