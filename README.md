@@ -109,3 +109,4 @@ the four kinds, how to test. (`CLAUDE.md` points there too.)
 
 - **Claude Code**
 - **Antigravity**
+- **Codex**
