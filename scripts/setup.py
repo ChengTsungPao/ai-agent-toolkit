@@ -554,11 +554,7 @@ def _install_skills(dest_root: Path) -> None:
     _install_ext_skills(dest_root)
 
 
-CLAUDE_REF = (
-    "# Agent guidelines\n\n"
-    "Follow every guideline in `~/.claude/AGENTS.md` (shared cross-harness rules: "
-    "think before coding, simplicity first, surgical changes, goal-driven execution)."
-)
+CLAUDE_REF = "@~/.claude/AGENTS.md\n"
 
 
 def repo_display() -> str:

@@ -159,3 +159,4 @@ When contributing or committing changes to this repository, AI coding agents (Cl
 Rules:
 1. Ensure there is a blank line separating the commit message body from the trailers.
 2. Maintain standard Git trailer format: `Co-authored-by: Name <email>`.
+3. If none of these agents are used (e.g. human-only manual commit), do not append any trailer.
