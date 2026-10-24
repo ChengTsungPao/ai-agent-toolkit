@@ -84,6 +84,8 @@ default = "uv tool install basic-memory"
 default = "basic-memory config set cloud_promo_opt_out true"   # cheap + idempotent
 [tool.env]
 BASIC_MEMORY_NO_PROMOS = "1"   # non-secret; safe to write into harness config
+PYTHONUTF8 = "1"                # keep Windows stdio MCP handshake UTF-8
+PYTHONIOENCODING = "utf-8"      # keep Python diagnostics off legacy code pages
 [tool.mcp]
 command = "basic-memory"
 args    = ["mcp"]
