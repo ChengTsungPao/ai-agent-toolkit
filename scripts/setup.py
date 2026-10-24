@@ -792,7 +792,7 @@ def _ensure_antigravity_daemon_running() -> None:
             "-NoProfile",
             "-NonInteractive",
             "-Command",
-            '(Get-CimInstance Win32_Process -Filter "name like \'%agy%\'") | '
+            "(Get-CimInstance Win32_Process -Filter \"name like '%agy%'\") | "
             "Where-Object { $_.CommandLine -like '*remote-control serve*' } | "
             "Measure-Object | Select-Object -ExpandProperty Count",
         ]
