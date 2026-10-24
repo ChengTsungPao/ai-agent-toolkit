@@ -1,4 +1,4 @@
-# ai-dev-env
+# Portable AI Dev Environment
 
 My portable AI dev environment. One repo that knows every tool I deliberately
 installed, what it's for, and how to wire it — plus skills, plugins, and
@@ -11,21 +11,19 @@ Fresh machine = clone + one script.
 
 ```bash
 # macOS / Linux
-git clone https://github.com/ChengTsungPao/ai-dev-env ~/ai-dev-env
-~/ai-dev-env/scripts/install.sh              # report: what's installed + how to use it
-~/ai-dev-env/scripts/install.sh bootstrap    # install missing + wire every harness found
+./scripts/install.sh              # report: what's installed + how to use it
+./scripts/install.sh bootstrap    # install missing + wire every harness found
 ```
 
 ```powershell
 # Windows (if script execution is disabled on fresh Windows: Set-ExecutionPolicy RemoteSigned -Scope CurrentUser)
-git clone https://github.com/ChengTsungPao/ai-dev-env $HOME\ai-dev-env
-& $HOME\ai-dev-env\scripts\install.ps1
-& $HOME\ai-dev-env\scripts\install.ps1 bootstrap
+.\scripts\install.ps1
+.\scripts\install.ps1 bootstrap
 ```
 
 `bootstrap` asks *all vs confirm-each*, installs, then wires Claude Code / Codex /
 Antigravity if their CLI is present. Or drive the steps yourself: `install` → `wire
-<harness>`. Fill any secrets into `~/.ai-dev-env/config.toml` and re-run `wire`.
+<harness>`. Fill any secrets into your local `config.toml` (`setup.py config`) and re-run `wire`.
 
 Only prerequisite is [uv](https://docs.astral.sh/uv/) — the bootstrap installs
 it, then runs everything on a pinned Python.
@@ -51,7 +49,7 @@ Per-item detail: [`docs/`](docs/). Source of truth:
 
 ## Local config
 
-**`~/.ai-dev-env/config.toml`** — a file you own, outside the clone, never
+**`~/.<repo>/config.toml`** — a file you own, outside the clone, never
 committed. Holds two things:
 
 - `[env]` — secrets each MCP server needs (e.g. `NOTION_TOKEN`)
@@ -68,7 +66,7 @@ setup.py report              # grouped status: MCP servers / CLI tools / Skills 
 setup.py bootstrap [--all|--each]   # install everything + wire every harness found
 setup.py install [ids] [--all|--each]
 setup.py upgrade [ids]       # uv tool upgrade / npm / installer + re-pull [[skill]] latest
-setup.py config              # create/show ~/.ai-dev-env/config.toml
+setup.py config              # create/show ~/.<repo>/config.toml
 setup.py choose              # pick which items to skip
 setup.py statusline [--off]  # add a 'ctx NN%' segment to the Claude Code statusLine (contrib/statusline/)
 setup.py wire   <claude-code|codex|antigravity|cursor|generic>   # MCP + skills + guidelines + plugins
@@ -96,7 +94,7 @@ Run via `scripts/install.sh` / `.ps1`, or `uv run --python 3.12 scripts/setup.py
 | **`docs/`** | one optional page per manifest entry: *why* it was chosen + fiddly setup |
 | **`AGENTS.md`** / **`CLAUDE.md`** | how to work **on this repo** |
 
-Secrets live in `~/.ai-dev-env/config.toml` — **outside the repo**, created by
+Secrets live in `~/.<repo>/config.toml` — **outside the repo**, created by
 `setup.py config`.
 
 ## Working on this repo · adding tools/skills/plugins

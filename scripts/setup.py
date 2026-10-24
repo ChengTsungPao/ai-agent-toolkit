@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ai-dev-env orchestrator.
+"""Environment orchestrator.
 
 Cross-platform (Windows / macOS / Linux). Requires Python 3.11+ — the bootstrap
 scripts always invoke it as `uv run --python 3.12`, so `tomllib` is available.
@@ -19,7 +19,7 @@ bootstrap         fresh machine: install every tool, then wire every harness fou
 install [tools]   install missing [[tool]] entries; "confirm each" vs "install all"
 upgrade [tools]   upgrade installed tools (uv tool upgrade / npm / installer) and
                   re-pull [[skill]] entries to their latest
-config            create/show ~/.ai-dev-env/config.toml (fill in tokens here)
+config            create/show ~/.<repo>/config.toml (fill in tokens here)
 choose            pick which managed items to skip (writes config [skip].ids;
                   honoured by install / wire / skills / plugins)
 statusline [--off] add / remove a 'ctx NN%' segment on the Claude Code statusLine
@@ -31,7 +31,7 @@ skills            (re)install skills — local skills/ folders + [[skill]] entri
 plugins           (re)install [[plugin]] ecosystems (e.g. superpowers)
 doctor            run each [[tool]] verify command + flag missing config
 
-Secrets (Notion token, …) go in ~/.ai-dev-env/config.toml — a file you own,
+Secrets (Notion token, …) go in ~/.<repo>/config.toml — a file you own,
 outside the repo clone. `wire` reads it and passes the values to each MCP server.
 `install` always prints a plan and asks first. `unwire` is the only subcommand
 that removes things, and only ever harness wiring — never an installed CLI or
@@ -53,10 +53,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # sibling modules resolve however this is loaded
 from _common import (  # noqa: E402  (must follow the sys.path line above)
     CONFIG,
+    CONFIG_DISPLAY,
     IS_WINDOWS,
     MANIFEST,
     OS,
     REPO,
+    REPO_NAME,
     SKILLS_DIR,
     bold,
     dim,
@@ -97,7 +99,7 @@ def ext_skills() -> list[dict]:
     return load_manifest().get("skill", [])
 
 
-# ── local config (~/.ai-dev-env/config.toml) ───────────────────────────────
+# ── local config (~/.<repo>/config.toml) ───────────────────────────────────
 def env_required(t: dict) -> dict[str, str]:
     """{ENV_KEY: description} a tool's MCP server needs. Tolerates the old list form."""
     er = t.get("mcp", {}).get("env_required", {})
@@ -161,7 +163,7 @@ def _config_body(skip_override: list[str] | None = None) -> str:
     skip = skip_override if skip_override is not None else list(cfg.get("skip", {}).get("ids", []))
     managed = all_required_env()
     lines = [
-        "# ai-dev-env local config — this machine only, NOT in git.",
+        f"# {REPO_NAME} local config — this machine only, NOT in git.",
         "",
         "# Secrets each MCP server needs. Fill in, then re-run: setup.py wire <harness>",
         "[env]",
@@ -220,8 +222,8 @@ def _wrap(s: str, width: int) -> list[str]:
     return out
 
 
-GUIDE_BEGIN = "<!-- BEGIN ai-dev-env-guidelines -->"
-GUIDE_END = "<!-- END ai-dev-env-guidelines -->"
+GUIDE_BEGIN = f"<!-- BEGIN {REPO_NAME}-guidelines -->"
+GUIDE_END = f"<!-- END {REPO_NAME}-guidelines -->"
 
 
 def guidelines_text() -> str:
@@ -317,7 +319,7 @@ def _skip_tag(id_: str, skip: set[str]) -> str:
 def cmd_report(_args) -> int:
     tools = load_tools()
     skip = skipped_ids()
-    print(bold(f"\nai-dev-env  ·  {platform.system()}  ·  repo: {REPO}"))
+    print(bold(f"\n{REPO_NAME}  ·  {platform.system()}  ·  repo: {REPO}"))
 
     mcp = [t for t in tools if t.get("mcp")]
     cli = [t for t in tools if not t.get("mcp")]
@@ -378,7 +380,7 @@ def _persist_env(key: str, value: str) -> None:
     if IS_WINDOWS:
         subprocess.run(f'setx {key} "{value}"', shell=True, capture_output=True)
         return
-    marker = f"# ai-dev-env: {key}"
+    marker = f"# {REPO_NAME}: {key}"
     line = f'export {key}="{value}"  {marker}\n'
     for rc in ("~/.zprofile", "~/.bash_profile", "~/.profile"):
         p = Path(rc).expanduser()
@@ -523,7 +525,7 @@ def _install_ext_skills(dest_root: Path) -> None:
         if s["id"] in skip:
             print(dim(f"  skill {s['id']}: skipped (config [skip])"))
             continue
-        with tempfile.TemporaryDirectory(prefix="ai-dev-env-") as tmp:
+        with tempfile.TemporaryDirectory(prefix=f"{REPO_NAME}-") as tmp:
             r = subprocess.run(f'git clone --depth 1 -q {s["repo"]} "{tmp}"', shell=True, capture_output=True)
             if r.returncode != 0:
                 print(red(f"  skill {s['id']}: git clone failed ({s['repo']}) — skipped this run"))
@@ -1003,7 +1005,7 @@ def _wire(harness: str) -> int:
         print(red(f"unknown harness '{harness}'. choices: {', '.join(WIRERS)}"))
         return 2
     _first_run_gate()
-    print(bold(f"\nwiring ai-dev-env into {harness}\n"))
+    print(bold(f"\nwiring {REPO_NAME} into {harness}\n"))
     rc = fn(load_tools())
     _install_guidelines(harness)
     _install_plugins(harness)
@@ -1020,7 +1022,7 @@ def _detected_harnesses() -> list[str]:
 
 def cmd_bootstrap(args) -> int:
     """Fresh machine, one shot: install every tool, then wire every harness found."""
-    print(bold("\nai-dev-env bootstrap\n"))
+    print(bold(f"\n{REPO_NAME} bootstrap\n"))
     _first_run_gate()
 
     rc = _install([], args.mode)
@@ -1148,7 +1150,7 @@ def cmd_unwire(args) -> int:
     if h not in WIRERS:
         print(red(f"unknown harness '{h}'. choices: {', '.join(WIRERS)}"))
         return 2
-    print(bold(f"\nremoving ai-dev-env wiring from {h}\n"))
+    print(bold(f"\nremoving {REPO_NAME} wiring from {h}\n"))
     mcp_ids = [t["id"] for t in load_tools() if t.get("mcp")]
 
     if h == "antigravity":
@@ -1172,7 +1174,7 @@ def cmd_unwire(args) -> int:
     else:
         print(dim(f"  {h}: manual — remove the MCP entries, skill dirs, and guidelines block yourself"))
 
-    print(dim("\n  kept: installed CLIs, ~/.ai-dev-env/config.toml, plugins, statusline."))
+    print(dim(f"\n  kept: installed CLIs, {CONFIG_DISPLAY}, plugins, statusline."))
     print(dim("  uninstall a CLI:   uv tool uninstall <id>   /   npm uninstall -g <pkg>"))
     print(dim("  statusline off:    setup.py statusline --off"))
     return 0
@@ -1270,7 +1272,7 @@ def main() -> int:
     pup.add_argument("tools", nargs="*", help="tool ids (default: all installed)")
     pup.set_defaults(fn=cmd_upgrade)
 
-    sub.add_parser("config", help="create/show ~/.ai-dev-env/config.toml").set_defaults(fn=cmd_config)
+    sub.add_parser("config", help=f"create/show {CONFIG_DISPLAY}").set_defaults(fn=cmd_config)
 
     sub.add_parser("choose", help="pick which tools/skills/plugins to skip").set_defaults(fn=cmd_choose)
 
@@ -1282,7 +1284,7 @@ def main() -> int:
     pw.add_argument("harness", choices=list(WIRERS))
     pw.set_defaults(fn=cmd_wire)
 
-    pun = sub.add_parser("unwire", help="remove ai-dev-env wiring (MCP + skills + guidelines) from a harness")
+    pun = sub.add_parser("unwire", help=f"remove {REPO_NAME} wiring (MCP + skills + guidelines) from a harness")
     pun.add_argument("harness", choices=list(WIRERS))
     pun.set_defaults(fn=cmd_unwire)
 

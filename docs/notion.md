@@ -18,7 +18,7 @@ creates or edits is written to your Notion workspace.
 1. **Create an integration**: https://www.notion.so/profile/integrations →
    *New integration* → *Internal*. Copy the secret (`ntn_...`).
    Set its capabilities to *Read content* only if you want it read-only.
-2. **Put the token in your local config** — `~/.ai-dev-env/config.toml`
+2. **Put the token in your local config** — `config.toml`
    (`setup.py config` creates it; it lives outside the repo clone and is never
    committed):
    ```toml

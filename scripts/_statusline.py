@@ -13,9 +13,10 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from _common import REPO, dim, green
+from _common import REPO, REPO_NAME, dim, green
 
-STATUSLINE_DIR = Path.home() / ".claude" / "ai-dev-env-statusline"
+STATUSLINE_TAG = f"{REPO_NAME}-statusline"
+STATUSLINE_DIR = Path.home() / ".claude" / STATUSLINE_TAG
 _CLAUDE_SETTINGS = Path.home() / ".claude" / "settings.json"
 
 
@@ -96,7 +97,7 @@ def cmd_statusline(args) -> int:
     (STATUSLINE_DIR / "statusline.sh").unlink(missing_ok=True)
 
     cur = (settings.get("statusLine") or {}).get("command", "")
-    if "ai-dev-env-statusline" not in cur:
+    if STATUSLINE_TAG not in cur:
         prev_file.write_text(cur, encoding="utf-8")  # empty if there was none
         if cur:
             print(dim(f"chaining to existing statusLine ({len(cur)} chars saved)"))

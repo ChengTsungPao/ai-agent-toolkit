@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# ai-dev-env bootstrap — macOS / Linux
+# Environment bootstrap — macOS / Linux
 #
-#   git clone https://github.com/ChengTsungPao/ai-dev-env ~/ai-dev-env
-#   ~/ai-dev-env/scripts/install.sh            # -> report
-#   ~/ai-dev-env/scripts/install.sh install    # -> install missing tools
-#   ~/ai-dev-env/scripts/install.sh wire codex
+#   ./scripts/install.sh              # -> report
+#   ./scripts/install.sh bootstrap    # -> install missing + wire every harness found
+#   ./scripts/install.sh wire codex
 #
 # Only hard dependency is uv; this script installs it if missing, then hands
 # off to setup.py running on a pinned Python (tomllib guaranteed).
