@@ -382,7 +382,7 @@ def _persist_env(key: str, value: str) -> None:
         return
     marker = f"# {REPO_NAME}: {key}"
     line = f'export {key}="{value}"  {marker}\n'
-    for rc in ("~/.zprofile", "~/.bash_profile", "~/.profile"):
+    for rc in ("~/.zprofile", "~/.zshrc", "~/.bash_profile", "~/.profile"):
         p = Path(rc).expanduser()
         try:
             existing = p.read_text() if p.exists() else ""
