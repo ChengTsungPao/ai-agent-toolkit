@@ -7,11 +7,17 @@ description: Pull, handoff, and review design documents from Google Drive across
 
 This skill guides the agent to interactively select and download design documents from Google Drive into the workspace.
 
-## Drive Ecosystem Root Folder IDs
+## Ecosystem Resolution
 
-- **Google AI Folder ID**: `[REDACTED_FOLDER_ID]`
-- **Claude AI Folder ID**: `[REDACTED_FOLDER_ID]`
-- **Meta AI Folder ID**: `[REDACTED_FOLDER_ID]`
+Resolve the root ecosystem folder dynamically by name:
+- **Google AI**: search for folder named `Google AI` (`title = 'Google AI' and mimeType = 'application/vnd.google-apps.folder'`)
+- **Claude AI**: search for folder named `Claude AI` (`title = 'Claude AI' and mimeType = 'application/vnd.google-apps.folder'`)
+- **Meta AI**: search for folder named `Meta AI` (`title = 'Meta AI' and mimeType = 'application/vnd.google-apps.folder'`)
+
+Or search via CLI:
+```bash
+gdrive readonly search --name "<ECOSYSTEM_NAME>" --type folder
+```
 
 ## Execution Workflow
 
