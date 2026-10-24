@@ -106,3 +106,8 @@ the four kinds, how to test. (`CLAUDE.md` points there too.)
 
 `guidelines/AGENTS.md` is a different file: the behavioural rules this repo
 *distributes* to each machine, not instructions for working here.
+
+## Built with AI Agents
+
+- **Claude Code**
+- **Antigravity**
