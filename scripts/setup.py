@@ -787,21 +787,29 @@ def _ensure_antigravity_daemon_running() -> None:
     if not IS_WINDOWS or "PYTEST_CURRENT_TEST" in os.environ:
         return
     try:
-        cmd_check = (
-            'powershell -Command "Get-CimInstance Win32_Process -Filter \\"name like \'%agy%\'\\" | '
+        cmd_check = [
+            "powershell",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            '(Get-CimInstance Win32_Process -Filter "name like \'%agy%\'") | '
             "Where-Object { $_.CommandLine -like '*remote-control serve*' } | "
-            'Measure-Object | Select-Object -ExpandProperty Count"'
-        )
-        res = subprocess.run(cmd_check, shell=True, capture_output=True, text=True)
+            "Measure-Object | Select-Object -ExpandProperty Count",
+        ]
+        res = subprocess.run(cmd_check, capture_output=True, text=True)
         count = int(res.stdout.strip() or "0")
         if count == 0:
             agy_exe = shutil.which("agy")
             if agy_exe:
-                spawn_cmd = (
-                    f'powershell -Command "Invoke-CimMethod -ClassName Win32_Process -MethodName Create '
-                    f'-Arguments @{{CommandLine = \'\\"{agy_exe}\\" remote-control serve\'}}"'
+                ps_script = (
+                    f"Invoke-CimMethod -ClassName Win32_Process -MethodName Create "
+                    f"-Arguments @{{CommandLine = '\"{agy_exe}\" remote-control serve'}}"
                 )
-                subprocess.run(spawn_cmd, shell=True, capture_output=True, text=True)
+                subprocess.run(
+                    ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script],
+                    capture_output=True,
+                    text=True,
+                )
     except Exception:
         pass
 
