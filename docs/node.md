@@ -43,5 +43,5 @@ npm-based MCP servers here are installed with `npm install -g` and wired as
 ## Removing the dependency
 
 Skip `notion-mcp` and `chrome-devtools` (`setup.py choose`, or
-`[skip].ids` in `~/.ai-dev-env/config.toml`) and nothing in this environment
+`[skip].ids` in `config.toml`) and nothing in this environment
 needs Node at all.

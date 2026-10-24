@@ -1,10 +1,9 @@
 <#
-  ai-dev-env bootstrap — Windows (PowerShell 5.1+)
+  Environment bootstrap — Windows (PowerShell 5.1+)
 
-    git clone https://github.com/ChengTsungPao/ai-dev-env $HOME\ai-dev-env
-    & $HOME\ai-dev-env\scripts\install.ps1               # -> report
-    & $HOME\ai-dev-env\scripts\install.ps1 install       # -> install missing
-    & $HOME\ai-dev-env\scripts\install.ps1 wire codex
+    .\scripts\install.ps1               # -> report
+    .\scripts\install.ps1 bootstrap     # -> install missing + wire every harness found
+    .\scripts\install.ps1 wire codex
 
   Only hard dependency is uv; installed here if missing, then setup.py runs on a
   pinned Python via `uv run --python 3.12`.

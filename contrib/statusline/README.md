@@ -14,11 +14,11 @@ setup.py statusline --off   # remove, restore what was there before
   in `transcript_path`, prints the segment. Harness-agnostic; never raises.
 - `wrapper.py` — what Claude Code actually runs. It first runs **whatever
   statusLine command was configured before this one** (saved to
-  `~/.claude/ai-dev-env-statusline/statusline-prev.txt` on install) so a host's
+  `~/.claude/<repo>-statusline/statusline-prev.txt` on install) so a host's
   own hook keeps working, then appends the `ctx.py` segment. Pure Python +
   stdlib.
 
-`setup.py statusline` copies both into `~/.claude/ai-dev-env-statusline/` and
+`setup.py statusline` copies both into `~/.claude/<repo>-statusline/` and
 sets `~/.claude/settings.json` `statusLine` to
 `uv run --python 3.12 --no-project "<…>/wrapper.py"` (falls back to a validated
 system `python` if `uv` is absent).

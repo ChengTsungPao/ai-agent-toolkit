@@ -23,7 +23,7 @@ shape — only the config file path differs.
   `basic-memory mcp --transport streamable-http --port 8000` and point the
   client at `http://127.0.0.1:8000/mcp`.
 
-For the skill itself: load `skills/ai-dev-env/SKILL.md` as a system prompt /
+For guidelines: load `guidelines/AGENTS.md` as a system prompt /
 rules / context file, however that client supports persistent instructions.
 
 ## Claude Desktop

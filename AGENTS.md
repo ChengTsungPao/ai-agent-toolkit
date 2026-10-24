@@ -1,4 +1,4 @@
-# Working on ai-dev-env
+# Working on this repo
 
 This repo provisions a personal AI dev environment: it installs a fixed set of
 tools and wires them — plus skills, plugins, and always-on guidelines — into
@@ -10,9 +10,8 @@ Also follow the behavioural rules in [`guidelines/AGENTS.md`](guidelines/AGENTS.
 ## Setup on a fresh machine
 
 ```sh
-git clone <this-repo> ~/ai-dev-env        # ~/ai-dev-env is canonical; any path works
-~/ai-dev-env/scripts/install.sh            # macOS/Linux   (install.ps1 on Windows)
-~/ai-dev-env/scripts/install.sh bootstrap  # install missing + wire every harness found
+./scripts/install.sh            # macOS/Linux   (install.ps1 on Windows)
+./scripts/install.sh bootstrap  # install missing + wire every harness found
 ```
 
 `bootstrap` = `install` (asks all vs each) then `wire` for each of Claude Code /
@@ -50,7 +49,7 @@ Google Antigravity (`agy`) is wired via `wire antigravity` into `~/.gemini/confi
 (skills, merged `mcp_config.json`, `AGENTS.md`; see `harnesses/antigravity.md`).
 Gemini CLI is **not** wired. Add harnesses to `WIRERS`.
 
-There is deliberately **no `ai-dev-env` skill** — an agent learns about the repo
+There is deliberately **no repo-management skill** — an agent learns about the repo
 from the generated "Environment repo" section in the installed `AGENTS.md`, and
 `setup.py report` is the live status command. Do not add one.
 
@@ -70,7 +69,7 @@ content it distributes or notes.
 | `docs/` | optional per-entry pages — rationale + fiddly setup, not tutorials | record a real decision or a painful setup |
 | `AGENTS.md`, `CLAUDE.md` (root) | how to work on this repo (this file) | when the repo's own structure/rules change |
 
-`~/.ai-dev-env/config.toml` — **outside the clone**, per machine. `[env]` holds
+`~/.<repo>/config.toml` — **outside the clone**, per machine. `[env]` holds
 MCP secrets; `[skip].ids` lists tools/skills/plugins to leave out of
 `install` / `wire` (set via `setup.py choose`; the first run asks). `setup.py
 config` creates it; it can't be committed (it's in `$HOME`).
@@ -120,15 +119,15 @@ and say so on the PR.
 
 ## Invariants — don't break these
 
-1. **No hard-coded clone path.** The repo must work cloned anywhere;
-   `~/ai-dev-env` is only the recommended spot. Scripts find their own root
+1. **No hard-coded clone path or repo name.** The repo must work cloned anywhere
+   under any directory name. Scripts find their own root and name dynamically
    (`Path(__file__).resolve().parent.parent`, `$PSScriptRoot`,
    `${BASH_SOURCE[0]}`); every manifest path (`docs`, `guidelines.canonical`,
    `[[skill]].paths`) is relative to that root.
 
-2. **Secrets never enter the repo.** They live in `~/.ai-dev-env/config.toml`
-   (created by `setup.py config`; dir overridable with `$AI_DEV_ENV_HOME`).
-   Mind the dot — `~/.ai-dev-env/` is machine state, `~/ai-dev-env/` is the clone.
+2. **Secrets never enter the repo.** They live in `~/.<repo>/config.toml`
+   (created by `setup.py config`; dir overridable with `$<REPO>_HOME`).
+   Mind the dot — `~/.<repo>/` is machine state, `~/<repo>/` is the clone.
 
 3. **The installed guidelines' "Environment repo" section is generated** by
    `setup.py` (`repo_display()`), with this machine's real path. Never hand-write

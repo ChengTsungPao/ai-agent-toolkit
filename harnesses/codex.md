@@ -47,4 +47,4 @@ cp -r ~/.codex/skills/graphify "$CODEX_HOME/skills/"
 setup.py unwire codex     # MCP servers + bundled/[[skill]] dirs + guidelines block
 ```
 
-Leaves installed CLIs and `~/.ai-dev-env/config.toml` alone.
+Leaves installed CLIs and your local `config.toml` alone.

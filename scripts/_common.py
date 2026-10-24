@@ -14,9 +14,12 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
+REPO_NAME = REPO.name
+ENV_HOME = f"{REPO_NAME.upper().replace('-', '_')}_HOME"
+CONFIG_DISPLAY = f"~/.{REPO_NAME}/config.toml"
 MANIFEST = REPO / "manifest.toml"
 SKILLS_DIR = REPO / "skills"
-CONFIG = Path(os.environ.get("AI_DEV_ENV_HOME") or Path.home() / ".ai-dev-env") / "config.toml"
+CONFIG = Path(os.environ.get(ENV_HOME) or Path.home() / f".{REPO_NAME}") / "config.toml"
 
 OS = {"Windows": "windows", "Darwin": "macos", "Linux": "linux"}.get(platform.system(), "linux")
 IS_WINDOWS = OS == "windows"

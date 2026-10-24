@@ -34,4 +34,4 @@ Claude-specific. Antigravity hooks live in `<root>/hooks.json` (different schema
 setup.py unwire antigravity   # managed MCP entries + skill dirs + guidelines block
 ```
 
-Leaves hand-added MCP servers, installed CLIs and `~/.ai-dev-env/config.toml` alone.
+Leaves hand-added MCP servers, installed CLIs and your local `config.toml` alone.

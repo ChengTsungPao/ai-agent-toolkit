@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
+ENV_HOME = f"{REPO.name.upper().replace('-', '_')}_HOME"
 SCRIPTS = REPO / "scripts"
 SETUP = SCRIPTS / "setup.py"
 if str(SCRIPTS) not in sys.path:
@@ -15,7 +16,7 @@ if str(SCRIPTS) not in sys.path:
 
 
 def load():
-    # reload the kernel first so a test's monkeypatched AI_DEV_ENV_HOME reaches
+    # reload the kernel first so a test's monkeypatched ENV_HOME reaches
     # the CONFIG path constant (evaluated at _common import time)
     for name in ("_common", "_statusline"):
         if name in sys.modules:
@@ -44,7 +45,7 @@ def test_repo_display_is_under_this_repo():
     m = load()
     d = m.repo_display()
     assert isinstance(d, str) and d
-    assert d.rstrip("/").endswith("ai-dev-env")
+    assert d.rstrip("/").endswith(REPO.name)
 
 
 def test_env_repo_pointer_is_current():
@@ -65,7 +66,7 @@ def test_kind_enum_matches_manifest_test():
 
 
 def _run(tmp_path, *cmd, extra_env=None):
-    env = {**os.environ, "NO_COLOR": "1", "AI_DEV_ENV_HOME": str(tmp_path), **(extra_env or {})}
+    env = {**os.environ, "NO_COLOR": "1", ENV_HOME: str(tmp_path), **(extra_env or {})}
     return subprocess.run(
         [sys.executable, str(SETUP), *cmd],
         capture_output=True,
@@ -315,7 +316,7 @@ def test_strip_block_removes_only_the_marked_region(tmp_path):
 
 
 def test_config_body_preserves_unmanaged_env_keys(tmp_path, monkeypatch):
-    monkeypatch.setenv("AI_DEV_ENV_HOME", str(tmp_path))
+    monkeypatch.setenv(ENV_HOME, str(tmp_path))
     m = load()
     (tmp_path / "config.toml").write_text(
         '[env]\nMY_OWN_KEY = "hi"\n\n[skip]\nids = []\n\n[my_table]\nx = 1\n', encoding="utf-8"
@@ -337,7 +338,7 @@ def test_skip_list_is_honoured(tmp_path, monkeypatch):
     assert "⊘ skipped" in rep.stdout
 
     # in-process: the filters exclude it (no real installs triggered)
-    monkeypatch.setenv("AI_DEV_ENV_HOME", str(tmp_path))
+    monkeypatch.setenv(ENV_HOME, str(tmp_path))
     m = load()
     assert "chrome-devtools" in m.skipped_ids()
     assert all(t["id"] != "chrome-devtools" for t in m._mcp_tools(m.load_tools()))

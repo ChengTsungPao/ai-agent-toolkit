@@ -2,7 +2,7 @@
   Canonical agent behavioral guidelines for this environment.
   Source: https://github.com/multica-ai/andrej-karpathy-skills (MIT), after
   Andrej Karpathy's notes on LLM coding pitfalls.
-  Managed by ai-dev-env — edit here, then re-run `setup.py guidelines`.
+  Edit here, then re-run `setup.py guidelines`.
   On install, setup.py appends an "Environment repo" section pointing at this
   machine's clone; keep this file to the behavioural rules only.
 -->

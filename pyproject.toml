@@ -1,4 +1,4 @@
-# Config only — ai-dev-env is not a package. `setup.py` stays stdlib-only;
+# Config only — this repo is not a Python package. `setup.py` stays stdlib-only;
 # pytest and ruff are dev tools fetched on demand via `uv run --with`.
 
 [tool.ruff]

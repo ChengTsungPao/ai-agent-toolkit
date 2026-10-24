@@ -1,4 +1,4 @@
-# ai-dev-env — manifest (source of truth)
+# Environment manifest (source of truth)
 #
 # Four kinds of thing, one section each (in this order). `setup.py` reads this
 # file; hand-edit freely, keep it valid TOML.
@@ -99,14 +99,14 @@ kind    = "mcp"
 purpose = "Official Notion MCP server (@notionhq/notion-mcp-server), installed globally via npm and run locally: search / read / create / update Notion pages and databases, and comments. No middleman service — the local process talks straight to api.notion.com with a token you own; scope it to only the pages/DBs you share, and it can be read-only. Your Notion data still lives in Notion's cloud (Notion is a cloud product); 'local' only means the MCP process and token stay on your machine."
 verify  = "notion-mcp-server --help"
 docs    = "docs/notion.md"
-setup   = "1) notion.so/profile/integrations -> New integration (internal); copy the ntn_ secret (Read-content-only if you want read-only). 2) Paste it into ~/.ai-dev-env/config.toml under [env] NOTION_TOKEN, then re-run `setup.py wire <harness>`. 3) On each Notion page/DB you want reachable: top-right menu -> Connect to integration."
+setup   = "1) notion.so/profile/integrations -> New integration (internal); copy the ntn_ secret (Read-content-only if you want read-only). 2) Paste it into your local config.toml (`setup.py config`) under [env] NOTION_TOKEN, then re-run `setup.py wire <harness>`. 3) On each Notion page/DB you want reachable: top-right menu -> Connect to integration."
 [tool.install]
 default = "npm install -g @notionhq/notion-mcp-server"   # needs Node.js / npm
 [tool.mcp]
 command = "notion-mcp-server"
 args    = []
 [tool.mcp.env_required]
-# KEY = human description -> becomes a comment in ~/.ai-dev-env/config.toml.
+# KEY = human description -> becomes a comment in your local config.toml (`setup.py config`).
 # Secrets: never written into harness config, only passed to the server.
 NOTION_TOKEN = "Notion internal integration secret (starts ntn_). Create at https://www.notion.so/profile/integrations ; then on each page/DB you want reachable: top-right menu -> Connect to integration."
 [tool.mcp.windows]

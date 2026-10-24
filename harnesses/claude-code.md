@@ -31,6 +31,6 @@ setup.py unwire claude-code      # MCP servers + bundled/[[skill]] dirs + guidel
 setup.py statusline --off         # if the context segment was installed
 ```
 
-`unwire` leaves installed CLIs and `~/.ai-dev-env/config.toml` alone. To also
+`unwire` leaves installed CLIs and your local `config.toml` alone. To also
 drop a CLI: `uv tool uninstall <id>` / `npm uninstall -g <pkg>`. graphify's own
 skill dir is removed by `graphify` itself if needed.
