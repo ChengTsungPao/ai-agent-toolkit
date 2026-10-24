@@ -196,7 +196,7 @@ command = "playwright-mcp"
 # browser download. For Firefox / WebKit: `npx playwright install firefox webkit`.
 # --extension attaches to your running browser through the Playwright MCP Bridge
 # extension (your logins / profile); it needs the extension token below.
-args    = ["--extension", "--browser", "msedge"]
+args    = ["--extension", "--browser", "chrome"]
 [tool.mcp.env_required]
 PLAYWRIGHT_MCP_EXTENSION_TOKEN = "Token shown by the Playwright MCP Bridge browser extension (extension page -> copy token). Needed for --extension mode."
 [tool.mcp.windows]

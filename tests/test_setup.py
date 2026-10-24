@@ -506,3 +506,97 @@ def test_wire_antigravity_declines_remote_control_via_env(monkeypatch, tmp_path)
     assert m.wire_antigravity([]) == 0
     cfg = json.loads((tmp_path / "config.json").read_text())
     assert cfg["userSettings"]["remoteControlEnabled"] is False
+
+
+def test_is_antigravity_daemon_running_platform_specific(monkeypatch):
+    m = load()
+    ran = []
+
+    if m.IS_WINDOWS:
+
+        def fake_run(cmd, capture_output=True, text=True):
+            ran.append(cmd)
+            return type("R", (), {"stdout": "1\n", "stderr": "", "returncode": 0})()
+
+        monkeypatch.setattr(m.subprocess, "run", fake_run)
+        assert m._is_antigravity_daemon_running() is True
+        assert len(ran) == 1
+        assert "powershell" in ran[0][0]
+        assert "Win32_Process" in ran[0][4]
+
+        # Case: count == 0 -> False
+        monkeypatch.setattr(
+            m.subprocess,
+            "run",
+            lambda cmd, **kw: type("R", (), {"stdout": "0\n", "stderr": "", "returncode": 0})(),
+        )
+        assert m._is_antigravity_daemon_running() is False
+    else:
+        # macOS / Linux
+        def fake_run(cmd, capture_output=True):
+            ran.append(cmd)
+            return type("R", (), {"returncode": 0})()
+
+        monkeypatch.setattr(m.subprocess, "run", fake_run)
+        assert m._is_antigravity_daemon_running() is True
+        assert ran == [["pgrep", "-f", "remote-control serve"]]
+
+        # Case: pgrep returns non-zero -> False
+        monkeypatch.setattr(
+            m.subprocess,
+            "run",
+            lambda cmd, **kw: type("R", (), {"returncode": 1})(),
+        )
+        assert m._is_antigravity_daemon_running() is False
+
+
+def test_ensure_antigravity_daemon_running_platform_specific(monkeypatch):
+    m = load()
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.setattr(m.shutil, "which", lambda name: f"/mock/bin/{name}")
+
+    # Case 1: already running -> should do nothing on any platform
+    monkeypatch.setattr(m, "_is_antigravity_daemon_running", lambda: True)
+    ran_run = []
+    ran_popen = []
+    monkeypatch.setattr(m.subprocess, "run", lambda *a, **kw: ran_run.append(a))
+    monkeypatch.setattr(m.subprocess, "Popen", lambda *a, **kw: ran_popen.append((a, kw)))
+
+    m._ensure_antigravity_daemon_running()
+    assert ran_run == []
+    assert ran_popen == []
+
+    # Case 2: not running -> should spawn daemon with platform-appropriate command
+    monkeypatch.setattr(m, "_is_antigravity_daemon_running", lambda: False)
+
+    if m.IS_WINDOWS:
+        m._ensure_antigravity_daemon_running()
+        assert len(ran_run) == 1
+        call_args = ran_run[0][0]
+        assert call_args[0] == "powershell"
+        assert "Invoke-CimMethod" in call_args[4]
+        assert "Win32_Process" in call_args[4]
+        assert "remote-control serve" in call_args[4]
+        assert ran_popen == []
+    else:
+        # macOS / Linux
+        m._ensure_antigravity_daemon_running()
+        assert ran_run == []
+        assert len(ran_popen) == 1
+        args, kwargs = ran_popen[0]
+        assert args[0] == ["/mock/bin/agy", "remote-control", "serve"]
+        assert kwargs.get("start_new_session") is True
+
+
+def test_ensure_antigravity_daemon_running_missing_binary(monkeypatch):
+    m = load()
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.setattr(m.shutil, "which", lambda name: None)
+    monkeypatch.setattr(m, "_is_antigravity_daemon_running", lambda: False)
+
+    ran = []
+    monkeypatch.setattr(m.subprocess, "run", lambda *a, **kw: ran.append(a))
+    monkeypatch.setattr(m.subprocess, "Popen", lambda *a, **kw: ran.append(a))
+
+    m._ensure_antigravity_daemon_running()
+    assert ran == []
