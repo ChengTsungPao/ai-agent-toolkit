@@ -1,5 +1,4 @@
 # CLAUDE.md
 
-Everything about working on this repo is in **[AGENTS.md](AGENTS.md)** — read it.
+@AGENTS.md
 
-Nothing Claude-Code-specific here.

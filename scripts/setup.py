@@ -556,6 +556,7 @@ def _install_skills(dest_root: Path) -> None:
 
 CLAUDE_REF = (
     "# Agent guidelines\n\n"
+    "@~/.claude/AGENTS.md\n\n"
     "Follow every guideline in `~/.claude/AGENTS.md` (shared cross-harness rules: "
     "think before coding, simplicity first, surgical changes, goal-driven execution)."
 )
