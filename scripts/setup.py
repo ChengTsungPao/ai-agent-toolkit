@@ -782,12 +782,10 @@ def wire_antigravity(tools) -> int:
     return 0
 
 
-def _ensure_antigravity_daemon_running() -> None:
-    """Ensure `agy remote-control serve` is active in the background on Windows."""
-    if not IS_WINDOWS or "PYTEST_CURRENT_TEST" in os.environ:
-        return
-    try:
-        cmd_check = [
+def _is_antigravity_daemon_running() -> bool:
+    """Check if `agy remote-control serve` process is currently active."""
+    if IS_WINDOWS:
+        cmd = [
             "powershell",
             "-NoProfile",
             "-NonInteractive",
@@ -796,20 +794,44 @@ def _ensure_antigravity_daemon_running() -> None:
             "Where-Object { $_.CommandLine -like '*remote-control serve*' } | "
             "Measure-Object | Select-Object -ExpandProperty Count",
         ]
-        res = subprocess.run(cmd_check, capture_output=True, text=True)
-        count = int(res.stdout.strip() or "0")
-        if count == 0:
-            agy_exe = shutil.which("agy")
-            if agy_exe:
-                ps_script = (
-                    f"Invoke-CimMethod -ClassName Win32_Process -MethodName Create "
-                    f"-Arguments @{{CommandLine = '\"{agy_exe}\" remote-control serve'}}"
-                )
-                subprocess.run(
-                    ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script],
-                    capture_output=True,
-                    text=True,
-                )
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        return int(res.stdout.strip() or "0") > 0
+    # macOS / Linux
+    res = subprocess.run(["pgrep", "-f", "remote-control serve"], capture_output=True)
+    return res.returncode == 0
+
+
+def _ensure_antigravity_daemon_running() -> None:
+    """Ensure `agy remote-control serve` is active in the background across platforms."""
+    if "PYTEST_CURRENT_TEST" in os.environ:
+        return
+    try:
+        if _is_antigravity_daemon_running():
+            return
+        agy_exe = shutil.which("agy")
+        if not agy_exe:
+            return
+
+        if IS_WINDOWS:
+            # On Windows, spawn via WMI to detach from current session/console job
+            ps_script = (
+                f"Invoke-CimMethod -ClassName Win32_Process -MethodName Create "
+                f"-Arguments @{{CommandLine = '\"{agy_exe}\" remote-control serve'}}"
+            )
+            subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script],
+                capture_output=True,
+                text=True,
+            )
+        else:
+            # On macOS / Linux, start_new_session=True (setsid) fully detaches process from controlling terminal
+            subprocess.Popen(
+                [agy_exe, "remote-control", "serve"],
+                start_new_session=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+            )
     except Exception:
         pass
 
