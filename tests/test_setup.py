@@ -529,6 +529,8 @@ def test_wire_antigravity_declines_remote_control_via_env(monkeypatch, tmp_path)
 
 def test_is_antigravity_daemon_running_platform_specific(monkeypatch):
     m = load()
+    import _antigravity as ag
+
     ran = []
 
     if m.IS_WINDOWS:
@@ -538,7 +540,7 @@ def test_is_antigravity_daemon_running_platform_specific(monkeypatch):
             return type("R", (), {"stdout": "1\n", "stderr": "", "returncode": 0})()
 
         monkeypatch.setattr(m.subprocess, "run", fake_run)
-        assert m._is_antigravity_daemon_running() is True
+        assert ag.is_daemon_running() is True
         assert len(ran) == 1
         assert "powershell" in ran[0][0]
         assert "Win32_Process" in ran[0][4]
@@ -549,7 +551,7 @@ def test_is_antigravity_daemon_running_platform_specific(monkeypatch):
             "run",
             lambda cmd, **kw: type("R", (), {"stdout": "0\n", "stderr": "", "returncode": 0})(),
         )
-        assert m._is_antigravity_daemon_running() is False
+        assert ag.is_daemon_running() is False
     else:
         # macOS / Linux
         def fake_run(cmd, capture_output=True):
@@ -557,7 +559,7 @@ def test_is_antigravity_daemon_running_platform_specific(monkeypatch):
             return type("R", (), {"returncode": 0})()
 
         monkeypatch.setattr(m.subprocess, "run", fake_run)
-        assert m._is_antigravity_daemon_running() is True
+        assert ag.is_daemon_running() is True
         assert ran == [["pgrep", "-f", "remote-control serve"]]
 
         # Case: pgrep returns non-zero -> False
@@ -566,30 +568,32 @@ def test_is_antigravity_daemon_running_platform_specific(monkeypatch):
             "run",
             lambda cmd, **kw: type("R", (), {"returncode": 1})(),
         )
-        assert m._is_antigravity_daemon_running() is False
+        assert ag.is_daemon_running() is False
 
 
 def test_ensure_antigravity_daemon_running_platform_specific(monkeypatch):
     m = load()
+    import _antigravity as ag
+
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
     monkeypatch.setattr(m.shutil, "which", lambda name: f"/mock/bin/{name}")
 
     # Case 1: already running -> should do nothing on any platform
-    monkeypatch.setattr(m, "_is_antigravity_daemon_running", lambda: True)
+    monkeypatch.setattr(ag, "is_daemon_running", lambda: True)
     ran_run = []
     ran_popen = []
     monkeypatch.setattr(m.subprocess, "run", lambda *a, **kw: ran_run.append(a))
     monkeypatch.setattr(m.subprocess, "Popen", lambda *a, **kw: ran_popen.append((a, kw)))
 
-    m._ensure_antigravity_daemon_running()
+    ag.ensure_daemon_running()
     assert ran_run == []
     assert ran_popen == []
 
     # Case 2: not running -> should spawn daemon with platform-appropriate command
-    monkeypatch.setattr(m, "_is_antigravity_daemon_running", lambda: False)
+    monkeypatch.setattr(ag, "is_daemon_running", lambda: False)
 
     if m.IS_WINDOWS:
-        m._ensure_antigravity_daemon_running()
+        ag.ensure_daemon_running()
         assert len(ran_run) == 1
         call_args = ran_run[0][0]
         assert call_args[0] == "powershell"
@@ -599,7 +603,7 @@ def test_ensure_antigravity_daemon_running_platform_specific(monkeypatch):
         assert ran_popen == []
     else:
         # macOS / Linux
-        m._ensure_antigravity_daemon_running()
+        ag.ensure_daemon_running()
         assert ran_run == []
         assert len(ran_popen) == 1
         args, kwargs = ran_popen[0]
@@ -609,15 +613,17 @@ def test_ensure_antigravity_daemon_running_platform_specific(monkeypatch):
 
 def test_ensure_antigravity_daemon_running_missing_binary(monkeypatch):
     m = load()
+    import _antigravity as ag
+
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
     monkeypatch.setattr(m.shutil, "which", lambda name: None)
-    monkeypatch.setattr(m, "_is_antigravity_daemon_running", lambda: False)
+    monkeypatch.setattr(ag, "is_daemon_running", lambda: False)
 
     ran = []
     monkeypatch.setattr(m.subprocess, "run", lambda *a, **kw: ran.append(a))
     monkeypatch.setattr(m.subprocess, "Popen", lambda *a, **kw: ran.append(a))
 
-    m._ensure_antigravity_daemon_running()
+    ag.ensure_daemon_running()
     assert ran == []
 
 
