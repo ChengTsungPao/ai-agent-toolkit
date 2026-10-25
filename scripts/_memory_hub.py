@@ -164,7 +164,8 @@ def _without_ours(cfg: dict, harness: str) -> dict:
 
 def _command(path: Path) -> str:
     node = shutil.which("node") or "node"
-    return f'{node} "{path}"'
+    p = str(path)
+    return f'{node} "{p}"' if " " in p else f"{node} {p}"
 
 
 def wire_hooks(harness: str, hub: tuple[Path, str], action: str = "install") -> int:
