@@ -95,9 +95,8 @@ def _scripts(harness: str, hub: tuple[Path, str]) -> tuple[Path, Path]:
             agents / "antigravity" / "hooks" / "memory-capture.mjs",
         )
     recall = agents / "claude-code" / "hooks" / "memory-recall.mjs"
-    capture = agents / ("codex" if harness == "codex" else "claude-code") / "hooks" / (
-        "memory-capture.cmd" if harness == "codex" else "memory-capture.mjs"
-    )
+    capture_name = "memory-capture.cmd" if harness == "codex" and os.name == "nt" else "memory-capture.mjs"
+    capture = agents / ("codex" if harness == "codex" else "claude-code") / "hooks" / capture_name
     return recall, capture
 
 
