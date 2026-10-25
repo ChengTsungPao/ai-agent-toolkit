@@ -17,7 +17,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from _common import agy_home, codex_home, dim, green, yellow
+from _common import IS_WINDOWS, agy_home, codex_home, dim, green, yellow
 
 HUB_ENV = (  # env the `memorycore` MCP entry carries, in this order
     "TDAI_ENDPOINT",
@@ -163,7 +163,7 @@ def _without_ours(cfg: dict, harness: str) -> dict:
 
 
 def _command(path: Path) -> str:
-    node = shutil.which("node") or "node"
+    node = "node" if IS_WINDOWS else (shutil.which("node") or "node")
     p = str(path)
     return f'{node} "{p}"' if " " in p else f"{node} {p}"
 
