@@ -944,13 +944,16 @@ def _wire_antigravity_remote_control(home: Path) -> None:
     instance_name = default_name
 
     if is_interactive:
-        ans = input("Enable Antigravity Remote Control (https://antigravity.google.com)? [Y/n] ").strip().lower()
-        if ans in ("n", "no"):
-            enabled = False
-        else:
-            name_ans = input(f"Instance name for Remote Control [{default_name}]: ").strip()
-            if name_ans:
-                instance_name = name_ans
+        try:
+            ans = input("Enable Antigravity Remote Control (https://antigravity.google.com)? [Y/n] ").strip().lower()
+            if ans in ("n", "no"):
+                enabled = False
+            else:
+                name_ans = input(f"Instance name for Remote Control [{default_name}]: ").strip()
+                if name_ans:
+                    instance_name = name_ans
+        except EOFError:  # stdin looks like a terminal but nothing can answer (a script, an agent): use the defaults
+            print(dim(f"  remote-control: no answer available, using '{instance_name}'"))
     else:
         env_enable = os.environ.get("AGY_ENABLE_REMOTE_CONTROL", "").lower()
         if env_enable in ("0", "false", "no", "n"):

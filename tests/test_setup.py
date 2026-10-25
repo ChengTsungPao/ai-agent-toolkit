@@ -815,3 +815,21 @@ def test_wire_memorycore_puts_the_name_before_claudes_variadic_env(monkeypatch, 
     m._wire_memorycore("claude-code", fake_hub(tmp_path / "hub"))
     add = commands[-1]
     assert add.index(" memorycore ") < add.index("--env TDAI_TEAM_ID=team-x") < add.index(" -- ")
+
+
+def test_wire_antigravity_remote_control_survives_a_stdin_that_cannot_answer(monkeypatch, tmp_path):
+    """stdin that claims to be a terminal but is closed made `wire antigravity` crash with EOFError."""
+    import json
+
+    m = load()
+    monkeypatch.setenv("AGY_INSTANCE_NAME", "Windows PC")
+    monkeypatch.setattr(m.sys.stdin, "isatty", lambda: True)
+
+    def no_answer(prompt=""):
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", no_answer)
+    m._wire_antigravity_remote_control(tmp_path)
+    settings = json.loads((tmp_path / "config.json").read_text())["userSettings"]
+    assert settings["remoteControlEnabled"] is True
+    assert settings["remoteControlHostname"] == "Windows PC"
