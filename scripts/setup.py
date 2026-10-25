@@ -612,7 +612,8 @@ def _remove_memory_hub_hooks(path: Path, harness: str) -> None:
         for event in ("SessionStart", "Stop"):
             entries = hooks.get(event, [])
             hooks[event] = [
-                entry for entry in entries
+                entry
+                for entry in entries
                 if "memory-recall.mjs" not in str(entry) and "memory-capture.mjs" not in str(entry)
             ]
     _write_json_file(path, cfg)
@@ -653,7 +654,8 @@ def _wire_memory_hub_hooks(harness: str, hub: tuple[Path, str], action: str = "i
     for event in ("SessionStart", "Stop"):
         entries = hooks.setdefault(event, [])
         hooks[event] = [
-            entry for entry in entries
+            entry
+            for entry in entries
             if "memory-recall.mjs" not in str(entry) and "memory-capture.mjs" not in str(entry)
         ]
 

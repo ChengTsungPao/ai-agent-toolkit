@@ -666,4 +666,3 @@ def test_wire_memory_hub_hooks_claude_code(monkeypatch, tmp_path):
     assert len(session_starts) == 2
     assert session_starts[0] == {"type": "user"}
     assert "memory-recall.mjs" in session_starts[1]["hooks"][0]["command"]
-
