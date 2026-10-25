@@ -634,6 +634,7 @@ def fake_hub(root):
         "agents/claude-code/hooks/memory-recall.mjs",
         "agents/claude-code/hooks/memory-capture.mjs",
         "agents/codex/hooks/memory-capture.mjs",
+        "agents/codex/hooks/memory-capture.cmd",
         "agents/antigravity/hooks/memory-recall.mjs",
         "agents/antigravity/hooks/memory-capture.mjs",
     ):
@@ -704,6 +705,9 @@ def test_wire_memory_hub_hooks_codex_install_and_remove(monkeypatch, tmp_path):
     assert hooks["SessionStart"][0] == own
     assert "claude-code" in hooks["SessionStart"][1]["hooks"][0]["command"]  # recall is shared
     assert "codex" in hooks["Stop"][0]["hooks"][0]["command"]  # capture is Codex's own
+    capture_command = hooks["Stop"][0]["hooks"][0]["command"]
+    capture_script = "memory-capture.cmd" if m.os.name == "nt" else "memory-capture.mjs"
+    assert capture_command.endswith(f'{capture_script}"')
     assert (tmp_path / "codex" / "hooks.json.bak").exists()
 
     assert m._wire_memory_hub_hooks("codex", hub, action="remove") == 0
