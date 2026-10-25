@@ -834,8 +834,9 @@ def _ensure_antigravity_daemon_running() -> None:
         if IS_WINDOWS:
             # On Windows, spawn via WMI to detach from current session/console job
             ps_script = (
-                f"$cfg = New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{{ShowWindow = 0; CreateFlags = 0x210}}; "
-                f"Invoke-CimMethod -ClassName Win32_Process -MethodName Create "
+                "$cfg = New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly "
+                "-Property @{ShowWindow = 0; CreateFlags = 0x210}; "
+                "Invoke-CimMethod -ClassName Win32_Process -MethodName Create "
                 f"-Arguments @{{CommandLine = '\"{agy_exe}\" remote-control serve'; ProcessStartupInformation = $cfg}}"
             )
             subprocess.run(
