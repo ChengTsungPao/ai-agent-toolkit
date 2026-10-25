@@ -25,12 +25,10 @@ at a file that does not exist.
 1. The hub is **present** when `$PERSONAL_MEMORY_HUB_DIR` (default `~/personal-memory-hub`) contains
    `agents/claude-code/mcp/server.mjs`, `node` is on `PATH`, and MemoryCore answers
    `GET $TDAI_ENDPOINT/health` (default `http://127.0.0.1:8420`) with 200.
-2. Present: register the `memorycore` MCP server **and** the hub's hooks, and remove Basic Memory's MCP entry.
+2. Present: register the `memorycore` MCP server **and** the hub's hooks; remove Basic Memory's MCP entry
+   and (Claude Code, Codex) its hooks, so the two never run together.
 3. Absent (not cloned, not running, or no `node`): register Basic Memory and its hooks; remove the hub's
    MCP entry and hooks.
-
-   Switching from Basic Memory to the hub does not remove Basic Memory's own hooks. Run
-   `setup.py unwire <harness>` first if you do not want both active.
 
 Re-run `wire` after starting or stopping the hub to switch. `unwire <harness>` removes both.
 
@@ -49,6 +47,18 @@ Re-run `wire` after starting or stopping the hub to switch. `unwire <harness>` r
   must not block a turn.
 - When wiring, the toolkit takes the `TDAI_*` settings from the environment, falling back to the existing
   `memorycore` entry in `~/.claude.json`, so re-wiring one harness does not lose them in another.
+
+## Safety of the config edits
+
+The hook files are the harness's own settings (`~/.claude/settings.json` holds your model, env and plugins), so
+`wire` edits them conservatively:
+
+- A file that is not valid JSON is **left unchanged** and the hooks are skipped with a warning.
+- Before a change the old file is copied to `<file>.bak`; the new one is written to a temporary file and moved
+  into place.
+- Nothing is written when nothing changes, and a missing file is not created just to remove hooks.
+- If a hook script is missing in the hub repo (an older checkout), that harness is skipped with a warning
+  instead of registering a hook that fails on every turn.
 
 ## Check it
 

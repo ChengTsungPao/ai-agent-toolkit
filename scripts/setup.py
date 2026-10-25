@@ -48,8 +48,6 @@ import subprocess
 import sys
 import tempfile
 import tomllib
-import urllib.error
-import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # sibling modules resolve however this is loaded
@@ -62,12 +60,20 @@ from _common import (  # noqa: E402  (must follow the sys.path line above)
     REPO,
     REPO_NAME,
     SKILLS_DIR,
+    agy_home as _agy_home,
     bold,
+    codex_home as _codex_home,
     dim,
     green,
     red,
     run,
     yellow,
+)
+from _memory_hub import (  # noqa: E402  (Personal Memory Hub: detection + hook registration; see docs/memory-hub.md)
+    NO_HUB,
+    hub_server as _memory_hub_server,
+    memorycore_entry as _memorycore_entry,
+    wire_hooks as _wire_memory_hub_hooks,
 )
 from _statusline import cmd_statusline  # noqa: E402  (kept here so setup.py stays the only orchestrator)
 
@@ -498,23 +504,6 @@ def _mcp_env(t: dict, flag: str) -> tuple[str, str]:
     return real, masked
 
 
-def _memory_hub_server() -> tuple[Path, str] | None:
-    """Return the local Memory Hub MCP server when its core is reachable."""
-    root = Path(os.environ.get("PERSONAL_MEMORY_HUB_DIR", Path.home() / "personal-memory-hub"))
-    server = root / "agents" / "claude-code" / "mcp" / "server.mjs"
-    node = shutil.which("node")
-    if not server.is_file() or not node:
-        return None
-    endpoint = os.environ.get("TDAI_ENDPOINT", "http://127.0.0.1:8420").rstrip("/")
-    try:
-        with urllib.request.urlopen(f"{endpoint}/health", timeout=2) as response:
-            if response.status != 200:
-                return None
-    except (OSError, urllib.error.URLError):
-        return None
-    return server, node
-
-
 def _memory_backend() -> tuple[str, tuple[Path, str] | None]:
     hub = _memory_hub_server()
     return ("memorycore", hub) if hub else ("basic-memory", None)
@@ -523,152 +512,6 @@ def _memory_backend() -> tuple[str, tuple[Path, str] | None]:
 def _remove_memory_mcp(harness: str, name: str) -> None:
     command = f"claude mcp remove {name} -s user" if harness == "claude-code" else f"codex mcp remove {name}"
     subprocess.run(command, shell=True, capture_output=True, **WIN_FLAGS)
-
-
-def _fallback_memory_env() -> dict:
-    import json
-
-    env = {}
-    claude_json = Path.home() / ".claude.json"
-    if claude_json.exists():
-        try:
-            data = json.loads(claude_json.read_text(encoding="utf-8-sig"))
-            env.update(data.get("mcpServers", {}).get("memorycore", {}).get("env", {}))
-        except Exception:
-            pass
-    return env
-
-
-def _memorycore_entry(hub: tuple[Path, str], fallback_env: dict | None = None) -> dict:
-    server, node = hub
-    env = {}
-    fallback = {**_fallback_memory_env(), **(fallback_env or {})}
-    for key in (
-        "TDAI_ENDPOINT",
-        "TDAI_KNOWLEDGE_ENDPOINT",
-        "TDAI_SERVICE_ID",
-        "TDAI_TEAM_ID",
-        "TDAI_USER_ID",
-        "TDAI_ADMIN_KEY_FILE",
-        "TDAI_STATE_DIR",
-        "TDAI_TIMEOUT_MS",
-    ):
-        val = os.environ.get(key) or fallback.get(key)
-        if val:
-            env[key] = str(val)
-    entry = {"command": node, "args": [str(server)]}
-    if env:
-        entry["env"] = env
-    return entry
-
-
-def _memory_hub_hook_paths(hub: tuple[Path, str]) -> tuple[Path, Path, Path, Path, Path]:
-    """Return lifecycle hook paths for Claude, Codex, and Antigravity."""
-    server, _node = hub
-    root = server.parents[3]
-    return (
-        root / "agents" / "claude-code" / "hooks" / "memory-recall.mjs",
-        root / "agents" / "claude-code" / "hooks" / "memory-capture.mjs",
-        root / "agents" / "codex" / "hooks" / "memory-capture.mjs",
-        root / "agents" / "antigravity" / "hooks" / "memory-recall.mjs",
-        root / "agents" / "antigravity" / "hooks" / "memory-capture.mjs",
-    )
-
-
-def _hook_command(path: Path) -> str:
-    if IS_WINDOWS:
-        return f'node "{path}"'
-    return f'node "{path}"'
-
-
-def _read_json_file(path: Path) -> dict:
-    import json
-
-    if not path.exists():
-        return {}
-    try:
-        return json.loads(path.read_text(encoding="utf-8-sig").strip() or "{}")
-    except (OSError, ValueError):
-        return {}
-
-
-def _write_json_file(path: Path, value: dict) -> None:
-    import json
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
-
-
-def _remove_memory_hub_hooks(path: Path, harness: str) -> None:
-    cfg = _read_json_file(path)
-    if harness == "antigravity":
-        cfg.pop("memory-hub", None)
-        if "hooks" in cfg and isinstance(cfg["hooks"], dict):
-            cfg["hooks"].pop("memory-hub", None)
-            if not cfg["hooks"]:
-                cfg.pop("hooks", None)
-    else:
-        hooks = cfg.get("hooks", {})
-        for event in ("SessionStart", "Stop"):
-            entries = hooks.get(event, [])
-            hooks[event] = [
-                entry
-                for entry in entries
-                if "memory-recall.mjs" not in str(entry) and "memory-capture.mjs" not in str(entry)
-            ]
-    _write_json_file(path, cfg)
-
-
-def _wire_memory_hub_hooks(harness: str, hub: tuple[Path, str], action: str = "install") -> int:
-    """Merge Memory Hub lifecycle hooks without replacing user hooks."""
-    if harness == "claude-code":
-        path = Path.home() / ".claude" / "settings.json"
-    elif harness == "codex":
-        path = _codex_home() / "hooks.json"
-    elif harness == "antigravity":
-        path = _agy_home() / "hooks.json"
-    else:
-        return 0
-    if action == "remove":
-        _remove_memory_hub_hooks(path, harness)
-        print(dim(f"  Memory Hub hooks removed: {path}"))
-        return 0
-
-    recall, claude_capture, codex_capture, antigravity_recall, antigravity_capture = _memory_hub_hook_paths(hub)
-    cfg = _read_json_file(path)
-
-    if harness == "antigravity":
-        cfg["memory-hub"] = {
-            "SessionStart": [{"type": "command", "command": _hook_command(antigravity_recall), "timeout": 10}],
-            "Stop": [{"type": "command", "command": _hook_command(antigravity_capture), "timeout": 45}],
-        }
-        if "hooks" in cfg and isinstance(cfg["hooks"], dict):
-            cfg["hooks"].pop("memory-hub", None)
-            if not cfg["hooks"]:
-                cfg.pop("hooks", None)
-        _write_json_file(path, cfg)
-        print(green(f"  Memory Hub hooks installed: {path}"))
-        return 0
-
-    hooks = cfg.setdefault("hooks", {})
-    for event in ("SessionStart", "Stop"):
-        entries = hooks.setdefault(event, [])
-        hooks[event] = [
-            entry
-            for entry in entries
-            if "memory-recall.mjs" not in str(entry) and "memory-capture.mjs" not in str(entry)
-        ]
-
-    capture = codex_capture if harness == "codex" else claude_capture
-    hooks["SessionStart"].append(
-        {"matcher": "", "hooks": [{"type": "command", "command": _hook_command(recall), "timeout": 10}]}
-    )
-    hooks["Stop"].append(
-        {"matcher": "", "hooks": [{"type": "command", "command": _hook_command(capture), "timeout": 45}]}
-    )
-    _write_json_file(path, cfg)
-    print(green(f"  Memory Hub hooks installed: {path}"))
-    return 0
 
 
 def _wire_memorycore(harness: str, hub: tuple[Path, str]) -> int:
@@ -773,15 +616,6 @@ def env_repo_pointer() -> str:
         f"`{r}/manifest.toml` (4 sections: `[guidelines]` / `[[tool]]` / "
         "`[[skill]]` / `[[plugin]]`)."
     )
-
-
-def _codex_home() -> Path:
-    return Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
-
-
-def _agy_home() -> Path:
-    """Antigravity's global customization root (skills/, mcp_config.json, AGENTS.md)."""
-    return Path(os.environ.get("AGY_CONFIG_HOME", Path.home() / ".gemini" / "config"))
 
 
 def _install_guidelines(harness: str) -> None:
@@ -917,9 +751,10 @@ def wire_claude_code(tools) -> int:
         _warn_missing_env(t)
     _install_graphify_skill("claude-code")
     if backend == "memorycore":
+        _wire_basic_memory_hooks(tools, "claude", "remove")
         _wire_memory_hub_hooks("claude-code", hub)
         return _wire_memorycore("claude-code", hub)
-    _wire_memory_hub_hooks("claude-code", (Path("."), "node"), "remove")
+    _wire_memory_hub_hooks("claude-code", NO_HUB, "remove")
     _remove_memory_mcp("claude-code", "memorycore")
     return _wire_basic_memory_hooks(tools, "claude")
 
@@ -961,9 +796,10 @@ def wire_codex(tools) -> int:
         _warn_missing_env(t)
     _install_graphify_skill("codex")
     if backend == "memorycore":
+        _wire_basic_memory_hooks(tools, "codex", "remove")
         _wire_memory_hub_hooks("codex", hub)
         return _wire_memorycore("codex", hub)
-    _wire_memory_hub_hooks("codex", (Path("."), "node"), "remove")
+    _wire_memory_hub_hooks("codex", NO_HUB, "remove")
     _remove_memory_mcp("codex", "memorycore")
     return _wire_basic_memory_hooks(tools, "codex")
 
@@ -1009,7 +845,7 @@ def wire_antigravity(tools) -> int:
         _wire_memory_hub_hooks("antigravity", hub)
     else:
         servers.pop("memorycore", None)
-        _wire_memory_hub_hooks("antigravity", (Path("."), "node"), "remove")
+        _wire_memory_hub_hooks("antigravity", NO_HUB, "remove")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
     _install_graphify_skill("antigravity")
@@ -1441,7 +1277,7 @@ def cmd_unwire(args) -> int:
             "claude" if h == "claude-code" else "codex",
             "remove",
         )
-        _wire_memory_hub_hooks(h, (Path("."), "node"), "remove")
+        _wire_memory_hub_hooks(h, NO_HUB, "remove")
         _remove_memory_mcp(h, "memorycore")
     else:
         print(dim(f"  {h}: manual — remove the MCP entries, skill dirs, and guidelines block yourself"))

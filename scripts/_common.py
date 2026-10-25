@@ -54,3 +54,12 @@ def run(cmd: str, display: str | None = None, **kw) -> int:
     if sys.platform == "win32" and "creationflags" not in kw:
         kw["creationflags"] = subprocess.CREATE_NO_WINDOW
     return subprocess.run(cmd, shell=True, **kw).returncode
+
+
+def codex_home() -> Path:
+    return Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+
+
+def agy_home() -> Path:
+    """Antigravity's global customization root (skills/, mcp_config.json, AGENTS.md)."""
+    return Path(os.environ.get("AGY_CONFIG_HOME", Path.home() / ".gemini" / "config"))
