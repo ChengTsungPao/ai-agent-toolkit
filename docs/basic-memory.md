@@ -1,4 +1,10 @@
-# Basic Memory
+# Basic Memory (fallback)
+
+`setup.py wire claude-code`, `setup.py wire codex`, and
+`setup.py wire antigravity` prefer the local Personal
+Memory Hub when its MCP server and MemoryCore health endpoint are available.
+Basic Memory is used only when the hub is unavailable. Set
+`PERSONAL_MEMORY_HUB_DIR` to override the default `$HOME/personal-memory-hub`.
 
 **Repo:** https://github.com/basicmachines-co/basic-memory ·
 **Docs:** https://docs.basicmemory.com · **License:** AGPL-3.0

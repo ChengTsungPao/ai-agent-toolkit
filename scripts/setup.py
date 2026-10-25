@@ -48,6 +48,8 @@ import subprocess
 import sys
 import tempfile
 import tomllib
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # sibling modules resolve however this is loaded
@@ -496,6 +498,67 @@ def _mcp_env(t: dict, flag: str) -> tuple[str, str]:
     return real, masked
 
 
+def _memory_hub_server() -> tuple[Path, str] | None:
+    """Return the local Memory Hub MCP server when its core is reachable."""
+    root = Path(os.environ.get("PERSONAL_MEMORY_HUB_DIR", Path.home() / "personal-memory-hub"))
+    server = root / "agents" / "claude-code" / "mcp" / "server.mjs"
+    node = shutil.which("node")
+    if not server.is_file() or not node:
+        return None
+    endpoint = os.environ.get("TDAI_ENDPOINT", "http://127.0.0.1:8420").rstrip("/")
+    try:
+        with urllib.request.urlopen(f"{endpoint}/health", timeout=2) as response:
+            if response.status != 200:
+                return None
+    except (OSError, urllib.error.URLError):
+        return None
+    return server, node
+
+
+def _memory_backend() -> tuple[str, tuple[Path, str] | None]:
+    hub = _memory_hub_server()
+    return ("memorycore", hub) if hub else ("basic-memory", None)
+
+
+def _remove_memory_mcp(harness: str, name: str) -> None:
+    command = f"claude mcp remove {name} -s user" if harness == "claude-code" else f"codex mcp remove {name}"
+    subprocess.run(command, shell=True, capture_output=True, **WIN_FLAGS)
+
+
+def _memorycore_entry(hub: tuple[Path, str]) -> dict:
+    server, node = hub
+    env = {}
+    for key in (
+        "TDAI_ENDPOINT",
+        "TDAI_KNOWLEDGE_ENDPOINT",
+        "TDAI_SERVICE_ID",
+        "TDAI_TEAM_ID",
+        "TDAI_USER_ID",
+        "TDAI_ADMIN_KEY_FILE",
+        "TDAI_STATE_DIR",
+        "TDAI_TIMEOUT_MS",
+    ):
+        if os.environ.get(key):
+            env[key] = os.environ[key]
+    entry = {"command": node, "args": [str(server)]}
+    if env:
+        entry["env"] = env
+    return entry
+
+
+def _wire_memorycore(harness: str, hub: tuple[Path, str]) -> int:
+    server, node = hub
+    _remove_memory_mcp(harness, "basic-memory")
+    node_arg = f'"{node}"' if IS_WINDOWS else node
+    args = f'"{server}"' if IS_WINDOWS else str(server)
+    env_pairs = [f"--env {key}={value}" for key, value in _memorycore_entry(hub).get("env", {}).items()]
+    if harness == "claude-code":
+        command = f"claude mcp add --scope user {' '.join(env_pairs)} memorycore -- {node_arg} {args}"
+    else:
+        command = f"codex mcp add {' '.join(env_pairs)} memorycore -- {node_arg} {args}"
+    return run(command, display=f"{harness} memorycore MCP → {server}")
+
+
 def bundled_skills() -> list[Path]:
     """Every skills/<name>/ folder in the repo that has a SKILL.md."""
     if not SKILLS_DIR.is_dir():
@@ -709,11 +772,14 @@ def _resolve_npm_shim(cmd: str, args: list[str]) -> tuple[str, list[str]]:
 
 
 def wire_claude_code(tools) -> int:
+    backend, hub = _memory_backend()
     if shutil.which("claude") is None:
         print(red("  `claude` CLI not found — is Claude Code installed?"))
         return 1
     _install_skills(Path.home() / ".claude" / "skills")
     for t in _mcp_tools(tools):
+        if t["id"] == "basic-memory" and backend == "memorycore":
+            continue
         command, arglist = mcp_spec(t)
         command, arglist = _resolve_npm_shim(command, arglist)
         command = shutil.which(command) or command  # absolute path — don't rely on the harness's PATH
@@ -725,6 +791,9 @@ def wire_claude_code(tools) -> int:
         run(" ".join(base.format(env).split()), display=" ".join(base.format(env_masked).split()))
         _warn_missing_env(t)
     _install_graphify_skill("claude-code")
+    if backend == "memorycore":
+        return _wire_memorycore("claude-code", hub)
+    _remove_memory_mcp("claude-code", "memorycore")
     return _wire_basic_memory_hooks(tools, "claude")
 
 
@@ -744,12 +813,15 @@ def _wire_basic_memory_hooks(tools, harness: str, action: str = "install") -> in
 
 
 def wire_codex(tools) -> int:
+    backend, hub = _memory_backend()
     if shutil.which("codex") is None:
         print(red("  `codex` CLI not found."))
         return 1
     codex_home = _codex_home()
     _install_skills(codex_home / "skills")
     for t in _mcp_tools(tools):
+        if t["id"] == "basic-memory" and backend == "memorycore":
+            continue
         command, arglist = mcp_spec(t)
         command, arglist = _resolve_npm_shim(command, arglist)
         args = " ".join(arglist)
@@ -761,6 +833,9 @@ def wire_codex(tools) -> int:
             print(yellow(f"  `codex mcp add` failed for {t['id']} — add manually to {codex_home}/config.toml"))
         _warn_missing_env(t)
     _install_graphify_skill("codex")
+    if backend == "memorycore":
+        return _wire_memorycore("codex", hub)
+    _remove_memory_mcp("codex", "memorycore")
     return _wire_basic_memory_hooks(tools, "codex")
 
 
@@ -771,6 +846,7 @@ def wire_antigravity(tools) -> int:
     (hand-added ones) are left alone; only manifest ids are (re)written.
     """
     import json
+    backend, hub = _memory_backend()
 
     if shutil.which("agy") is None:
         print(red("  `agy` CLI not found — is Antigravity installed?"))
@@ -785,6 +861,8 @@ def wire_antigravity(tools) -> int:
         return 1
     servers = cfg.setdefault("mcpServers", {})
     for t in _mcp_tools(tools):
+        if t["id"] == "basic-memory" and backend == "memorycore":
+            continue
         command, arglist = mcp_spec(t)
         command, arglist = _resolve_npm_shim(command, arglist)
         entry = {"command": shutil.which(command) or command, "args": arglist}
@@ -794,6 +872,11 @@ def wire_antigravity(tools) -> int:
         servers[t["id"]] = entry
         print(green(f"  mcp    → {t['id']}") + dim(f"  ({path})"))
         _warn_missing_env(t)
+    if backend == "memorycore":
+        servers.pop("basic-memory", None)
+        servers["memorycore"] = _memorycore_entry(hub)
+    else:
+        servers.pop("memorycore", None)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
     _install_graphify_skill("antigravity")
@@ -1224,6 +1307,7 @@ def cmd_unwire(args) -> int:
             "claude" if h == "claude-code" else "codex",
             "remove",
         )
+        _remove_memory_mcp(h, "memorycore")
     else:
         print(dim(f"  {h}: manual — remove the MCP entries, skill dirs, and guidelines block yourself"))
 

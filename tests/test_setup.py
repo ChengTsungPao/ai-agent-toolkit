@@ -281,7 +281,11 @@ def test_unwire_claude_code_removes_mcp_then_guidelines(monkeypatch):
     ran, stripped, _ = _unwire_recorders(monkeypatch, m)
     rc = m.cmd_unwire(argparse.Namespace(harness="claude-code"))
     assert rc == 0
-    assert ran == ["claude mcp remove aa -s user", "claude mcp remove bb -s user"]  # 'cc' has no mcp
+    assert ran == [
+        "claude mcp remove aa -s user",
+        "claude mcp remove bb -s user",
+        "claude mcp remove memorycore -s user",
+    ]  # 'cc' has no mcp
     assert stripped == ["AGENTS.md", "CLAUDE.md"]
 
 
@@ -290,12 +294,13 @@ def test_unwire_codex_uses_codex_remove_and_spares_claude_md(monkeypatch):
     ran, stripped, _ = _unwire_recorders(monkeypatch, m)
     rc = m.cmd_unwire(argparse.Namespace(harness="codex"))
     assert rc == 0
-    assert ran == ["codex mcp remove aa", "codex mcp remove bb"]
+    assert ran == ["codex mcp remove aa", "codex mcp remove bb", "codex mcp remove memorycore"]
     assert stripped == ["AGENTS.md"]  # codex has no CLAUDE.md
 
 
 def test_wire_codex_installs_basic_memory_hooks(monkeypatch):
     m = load()
+    monkeypatch.setattr(m, "_memory_backend", lambda: ("basic-memory", None))
     monkeypatch.setattr(m.shutil, "which", lambda name: f"/bin/{name}")
     monkeypatch.setattr(m, "_install_skills", lambda d: None)
     monkeypatch.setattr(m, "_install_graphify_skill", lambda h: None)
@@ -383,6 +388,7 @@ def test_wire_antigravity_tolerates_empty_mcp_file(monkeypatch, tmp_path):
     import json
 
     m = load()
+    monkeypatch.setattr(m, "_memory_backend", lambda: ("basic-memory", None))
     monkeypatch.setenv("AGY_CONFIG_HOME", str(tmp_path))
     (tmp_path / "mcp_config.json").write_text("")
     monkeypatch.setattr(m.shutil, "which", lambda name: f"/bin/{name}")
