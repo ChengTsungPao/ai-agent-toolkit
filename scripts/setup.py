@@ -60,6 +60,7 @@ from _common import (  # noqa: E402  (must follow the sys.path line above)
     REPO,
     REPO_NAME,
     SKILLS_DIR,
+    WIN_FLAGS,
     agy_home as _agy_home,
     bold,
     codex_home as _codex_home,
@@ -69,6 +70,7 @@ from _common import (  # noqa: E402  (must follow the sys.path line above)
     run,
     yellow,
 )
+from _antigravity import wire_remote_control as _wire_antigravity_remote_control  # noqa: E402
 from _memory_hub import (  # noqa: E402  (Personal Memory Hub: detection + hook registration; see docs/memory-hub.md)
     NO_HUB,
     hub_server as _memory_hub_server,
@@ -76,8 +78,6 @@ from _memory_hub import (  # noqa: E402  (Personal Memory Hub: detection + hook 
     wire_hooks as _wire_memory_hub_hooks,
 )
 from _statusline import cmd_statusline  # noqa: E402  (kept here so setup.py stays the only orchestrator)
-
-WIN_FLAGS = {"creationflags": subprocess.CREATE_NO_WINDOW} if IS_WINDOWS else {}
 
 
 # ── manifest ────────────────────────────────────────────────────────────────
@@ -478,6 +478,12 @@ def _mcp_tools(tools) -> list[dict]:
     return [t for t in tools if t.get("mcp") and t["id"] not in skip]
 
 
+def _shell_arg(x: str) -> str:
+    """Quote an argument that contains a space (e.g. a node.EXE under "Program Files"); unquoted, the
+    shell splits it and the MCP server is registered with the command `C:\\Program`."""
+    return f'"{x}"' if " " in x and not x.startswith('"') else x
+
+
 def mcp_spec(t: dict) -> tuple[str, list[str]]:
     """(command, args) for this tool's MCP server, with a per-OS override applied."""
     m = {**t["mcp"], **t["mcp"].get(OS, {})}
@@ -517,11 +523,13 @@ def _remove_memory_mcp(harness: str, name: str) -> None:
 def _wire_memorycore(harness: str, hub: tuple[Path, str]) -> int:
     server, node = hub
     _remove_memory_mcp(harness, "basic-memory")
+    _remove_memory_mcp(harness, "memorycore")  # `mcp add` fails on a name that already exists
     node_arg = f'"{node}"' if IS_WINDOWS else node
     args = f'"{server}"' if IS_WINDOWS else str(server)
     env_pairs = [f"--env {key}={value}" for key, value in _memorycore_entry(hub).get("env", {}).items()]
     if harness == "claude-code":
-        command = f"claude mcp add --scope user {' '.join(env_pairs)} memorycore -- {node_arg} {args}"
+        # claude's -e/--env is variadic: it must come after the server name or it swallows it
+        command = f"claude mcp add --scope user memorycore {' '.join(env_pairs)} -- {node_arg} {args}"
     else:
         command = f"codex mcp add {' '.join(env_pairs)} memorycore -- {node_arg} {args}"
     return run(command, display=f"{harness} memorycore MCP → {server}")
@@ -742,7 +750,7 @@ def wire_claude_code(tools) -> int:
         command, arglist = mcp_spec(t)
         command, arglist = _resolve_npm_shim(command, arglist)
         command = shutil.which(command) or command  # absolute path — don't rely on the harness's PATH
-        args = " ".join(arglist)
+        command, args = _shell_arg(command), " ".join(_shell_arg(a) for a in arglist)
         # -e/--env is variadic, so it must come *after* the server name.
         env, env_masked = _mcp_env(t, "-e")
         subprocess.run(f"claude mcp remove {t['id']} -s user", shell=True, capture_output=True, **WIN_FLAGS)
@@ -786,9 +794,9 @@ def wire_codex(tools) -> int:
             continue
         command, arglist = mcp_spec(t)
         command, arglist = _resolve_npm_shim(command, arglist)
-        args = " ".join(arglist)
+        args = " ".join(_shell_arg(a) for a in arglist)
         env, env_masked = _mcp_env(t, "--env")
-        cmd = shutil.which(command) or command
+        cmd = _shell_arg(shutil.which(command) or command)
         # `codex mcp add [--env K=V] <name> -- <cmd> <args>` — overwrites cleanly.
         base = f"codex mcp add {{}} {t['id']} -- {cmd} {args}"
         if run(" ".join(base.format(env).split()), display=" ".join(base.format(env_masked).split())) != 0:
@@ -851,136 +859,6 @@ def wire_antigravity(tools) -> int:
     _install_graphify_skill("antigravity")
     _wire_antigravity_remote_control(home)
     return 0
-
-
-def _is_antigravity_daemon_running() -> bool:
-    """Check if `agy remote-control serve` process is currently active."""
-    if IS_WINDOWS:
-        cmd = [
-            "powershell",
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            "(Get-CimInstance Win32_Process -Filter \"name like '%agy%'\") | "
-            "Where-Object { $_.CommandLine -like '*remote-control serve*' } | "
-            "Measure-Object | Select-Object -ExpandProperty Count",
-        ]
-        res = subprocess.run(cmd, capture_output=True, text=True)
-        return int(res.stdout.strip() or "0") > 0
-    # macOS / Linux
-    res = subprocess.run(["pgrep", "-f", "remote-control serve"], capture_output=True)
-    return res.returncode == 0
-
-
-def _ensure_antigravity_daemon_running() -> None:
-    """Ensure `agy remote-control serve` is active in the background across platforms."""
-    if "PYTEST_CURRENT_TEST" in os.environ:
-        return
-    try:
-        if _is_antigravity_daemon_running():
-            return
-        agy_exe = shutil.which("agy")
-        if not agy_exe:
-            return
-
-        if IS_WINDOWS:
-            # On Windows, spawn via WMI to detach from current session/console job
-            ps_script = (
-                "$s = [wmiclass]'Win32_ProcessStartup'; "
-                "$cfg = $s.CreateInstance(); "
-                "$cfg.ShowWindow = 0; $cfg.CreateFlags = 0x210; "
-                "$p = [wmiclass]'Win32_Process'; "
-                f"$null = $p.Create('\"{agy_exe}\" remote-control serve', $null, $cfg)"
-            )
-            subprocess.run(
-                ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script],
-                capture_output=True,
-                text=True,
-                **WIN_FLAGS,
-            )
-        else:
-            # On macOS / Linux, start_new_session=True (setsid) fully detaches process from controlling terminal
-            subprocess.Popen(
-                [agy_exe, "remote-control", "serve"],
-                start_new_session=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                stdin=subprocess.DEVNULL,
-            )
-    except Exception:
-        pass
-
-
-def _wire_antigravity_remote_control(home: Path) -> None:
-    """Configure Antigravity Remote Control daemon with an instance name.
-
-    Prompts the user during interactive setup to choose whether to enable Remote Control
-    and which instance name to use. If declined, prints instructions on how to enable it later.
-    """
-    import json
-
-    cfg_path = home / "config.json"
-    cfg = {}
-    if cfg_path.exists():
-        try:
-            cfg = json.loads(cfg_path.read_text(encoding="utf-8-sig").strip() or "{}")
-        except ValueError:
-            cfg = {}
-
-    user_settings = cfg.setdefault("userSettings", {})
-    existing = user_settings.get("remoteControlHostname") or user_settings.get("cliRemoteControlHostname")
-    default_name = os.environ.get("AGY_INSTANCE_NAME") or existing or "Dev-Workstation"
-
-    is_interactive = sys.stdin.isatty()
-    enabled = True
-    instance_name = default_name
-
-    if is_interactive:
-        ans = input("Enable Antigravity Remote Control (https://antigravity.google.com)? [Y/n] ").strip().lower()
-        if ans in ("n", "no"):
-            enabled = False
-        else:
-            name_ans = input(f"Instance name for Remote Control [{default_name}]: ").strip()
-            if name_ans:
-                instance_name = name_ans
-    else:
-        env_enable = os.environ.get("AGY_ENABLE_REMOTE_CONTROL", "").lower()
-        if env_enable in ("0", "false", "no", "n"):
-            enabled = False
-
-    user_settings["remoteControlEnabled"] = enabled
-    user_settings["remoteControlHostname"] = instance_name
-    user_settings["cliRemoteControlHostname"] = instance_name
-
-    cfg_path.parent.mkdir(parents=True, exist_ok=True)
-    cfg_path.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
-
-    if not enabled:
-        print(dim("  remote-control → skipped"))
-        print(dim('    To enable anytime: agy remote-control start --name "<custom-name>"'))
-        print(dim("    Then access sessions at: https://antigravity.google.com/"))
-        return
-
-    # Never mutate host agy configuration or processes when running under tests or with an isolated root
-    if "PYTEST_CURRENT_TEST" in os.environ or home != Path.home() / ".gemini" / "config":
-        if getattr(subprocess.run, "__module__", "") != "subprocess":
-            subprocess.run(
-                f'agy remote-control start --name "{instance_name}"',
-                shell=True,
-                capture_output=True,
-                text=True,
-            )
-        return
-
-    cmd = f'agy remote-control start --name "{instance_name}"'
-    r = subprocess.run(cmd, shell=True, capture_output=True, text=True, **WIN_FLAGS)
-    _ensure_antigravity_daemon_running()
-    if r.returncode == 0:
-        print(green(f"  remote-control → daemon started as '{instance_name}'"))
-    else:
-        print(dim(f"  remote-control → instance name '{instance_name}' configured"))
-    print(dim("    manage & control sessions: https://antigravity.google.com/"))
-    print(dim("    (change instance name anytime: agy remote-control start --name <custom-name>)"))
 
 
 def _print_bundled_skills() -> None:

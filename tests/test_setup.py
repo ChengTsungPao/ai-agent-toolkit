@@ -529,6 +529,8 @@ def test_wire_antigravity_declines_remote_control_via_env(monkeypatch, tmp_path)
 
 def test_is_antigravity_daemon_running_platform_specific(monkeypatch):
     m = load()
+    import _antigravity as ag
+
     ran = []
 
     if m.IS_WINDOWS:
@@ -538,7 +540,7 @@ def test_is_antigravity_daemon_running_platform_specific(monkeypatch):
             return type("R", (), {"stdout": "1\n", "stderr": "", "returncode": 0})()
 
         monkeypatch.setattr(m.subprocess, "run", fake_run)
-        assert m._is_antigravity_daemon_running() is True
+        assert ag.is_daemon_running() is True
         assert len(ran) == 1
         assert "powershell" in ran[0][0]
         assert "Win32_Process" in ran[0][4]
@@ -549,7 +551,7 @@ def test_is_antigravity_daemon_running_platform_specific(monkeypatch):
             "run",
             lambda cmd, **kw: type("R", (), {"stdout": "0\n", "stderr": "", "returncode": 0})(),
         )
-        assert m._is_antigravity_daemon_running() is False
+        assert ag.is_daemon_running() is False
     else:
         # macOS / Linux
         def fake_run(cmd, capture_output=True):
@@ -557,7 +559,7 @@ def test_is_antigravity_daemon_running_platform_specific(monkeypatch):
             return type("R", (), {"returncode": 0})()
 
         monkeypatch.setattr(m.subprocess, "run", fake_run)
-        assert m._is_antigravity_daemon_running() is True
+        assert ag.is_daemon_running() is True
         assert ran == [["pgrep", "-f", "remote-control serve"]]
 
         # Case: pgrep returns non-zero -> False
@@ -566,30 +568,32 @@ def test_is_antigravity_daemon_running_platform_specific(monkeypatch):
             "run",
             lambda cmd, **kw: type("R", (), {"returncode": 1})(),
         )
-        assert m._is_antigravity_daemon_running() is False
+        assert ag.is_daemon_running() is False
 
 
 def test_ensure_antigravity_daemon_running_platform_specific(monkeypatch):
     m = load()
+    import _antigravity as ag
+
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
     monkeypatch.setattr(m.shutil, "which", lambda name: f"/mock/bin/{name}")
 
     # Case 1: already running -> should do nothing on any platform
-    monkeypatch.setattr(m, "_is_antigravity_daemon_running", lambda: True)
+    monkeypatch.setattr(ag, "is_daemon_running", lambda: True)
     ran_run = []
     ran_popen = []
     monkeypatch.setattr(m.subprocess, "run", lambda *a, **kw: ran_run.append(a))
     monkeypatch.setattr(m.subprocess, "Popen", lambda *a, **kw: ran_popen.append((a, kw)))
 
-    m._ensure_antigravity_daemon_running()
+    ag.ensure_daemon_running()
     assert ran_run == []
     assert ran_popen == []
 
     # Case 2: not running -> should spawn daemon with platform-appropriate command
-    monkeypatch.setattr(m, "_is_antigravity_daemon_running", lambda: False)
+    monkeypatch.setattr(ag, "is_daemon_running", lambda: False)
 
     if m.IS_WINDOWS:
-        m._ensure_antigravity_daemon_running()
+        ag.ensure_daemon_running()
         assert len(ran_run) == 1
         call_args = ran_run[0][0]
         assert call_args[0] == "powershell"
@@ -599,7 +603,7 @@ def test_ensure_antigravity_daemon_running_platform_specific(monkeypatch):
         assert ran_popen == []
     else:
         # macOS / Linux
-        m._ensure_antigravity_daemon_running()
+        ag.ensure_daemon_running()
         assert ran_run == []
         assert len(ran_popen) == 1
         args, kwargs = ran_popen[0]
@@ -609,15 +613,17 @@ def test_ensure_antigravity_daemon_running_platform_specific(monkeypatch):
 
 def test_ensure_antigravity_daemon_running_missing_binary(monkeypatch):
     m = load()
+    import _antigravity as ag
+
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
     monkeypatch.setattr(m.shutil, "which", lambda name: None)
-    monkeypatch.setattr(m, "_is_antigravity_daemon_running", lambda: False)
+    monkeypatch.setattr(ag, "is_daemon_running", lambda: False)
 
     ran = []
     monkeypatch.setattr(m.subprocess, "run", lambda *a, **kw: ran.append(a))
     monkeypatch.setattr(m.subprocess, "Popen", lambda *a, **kw: ran.append(a))
 
-    m._ensure_antigravity_daemon_running()
+    ag.ensure_daemon_running()
     assert ran == []
 
 
@@ -768,3 +774,86 @@ def test_wire_codex_with_the_hub_removes_basic_memory_hooks(monkeypatch, tmp_pat
 
     assert m.wire_codex([{"id": "basic-memory", "mcp": {"command": "basic-memory"}}]) == 0
     assert any(c.endswith("hook remove --harness codex") for c in commands)
+
+
+def test_mcp_command_with_a_space_in_its_path_is_quoted(monkeypatch):
+    """`claude mcp add ... -- C:\\Program Files\nodejs\node.EXE` was registered as the command `C:\\Program`."""
+    m = load()
+    monkeypatch.setattr(m, "_memory_backend", lambda: ("basic-memory", None))
+    monkeypatch.setattr(m.shutil, "which", lambda name: r"C:\Program Files\nodejs\node.EXE")
+    monkeypatch.setattr(m, "_install_skills", lambda d: None)
+    monkeypatch.setattr(m, "_install_graphify_skill", lambda h: None)
+    monkeypatch.setattr(m, "_warn_missing_env", lambda t: None)
+    monkeypatch.setattr(m, "_wire_basic_memory_hooks", lambda *a, **k: 0)
+    monkeypatch.setattr(m.subprocess, "run", lambda *a, **k: None)
+    commands = []
+    monkeypatch.setattr(m, "run", lambda cmd, **kw: commands.append(cmd) or 0)
+    tool = {"id": "demo", "mcp": {"command": "node", "args": ["server.js", r"C:\My Folder\x.js"]}}
+
+    m.wire_claude_code([tool])
+    m.wire_codex([tool])
+    add = [c for c in commands if " mcp add " in c]
+    assert len(add) == 2
+    for c in add:
+        assert r'-- "C:\Program Files\nodejs\node.EXE" server.js "C:\My Folder\x.js"' in c
+
+
+def test_wire_memorycore_removes_the_old_entry_first(monkeypatch, tmp_path):
+    """Re-running wire failed (exit 1) because `mcp add memorycore` found the existing entry."""
+    m = load()
+    events = []
+    monkeypatch.setattr(m.subprocess, "run", lambda cmd, **kw: events.append(cmd))
+    monkeypatch.setattr(m, "run", lambda cmd, **kw: events.append(cmd) or 0)
+    hub = fake_hub(tmp_path / "hub")
+    assert m._wire_memorycore("claude-code", hub) == 0
+    remove = events.index("claude mcp remove memorycore -s user")
+    add = next(i for i, e in enumerate(events) if " mcp add " in e and "memorycore" in e)
+    assert remove < add
+
+
+def test_wire_memorycore_puts_the_name_before_claudes_variadic_env(monkeypatch, tmp_path):
+    """`claude mcp add --env K=V memorycore -- ...` read `memorycore` as another env value and failed."""
+    m = load()
+    monkeypatch.setattr(m.subprocess, "run", lambda *a, **k: None)
+    monkeypatch.setenv("TDAI_TEAM_ID", "team-x")
+    commands = []
+    monkeypatch.setattr(m, "run", lambda cmd, **kw: commands.append(cmd) or 0)
+    m._wire_memorycore("claude-code", fake_hub(tmp_path / "hub"))
+    add = commands[-1]
+    assert add.index(" memorycore ") < add.index("--env TDAI_TEAM_ID=team-x") < add.index(" -- ")
+
+
+def test_wire_antigravity_remote_control_survives_a_stdin_that_cannot_answer(monkeypatch, tmp_path):
+    """stdin that claims to be a terminal but is closed made `wire antigravity` crash with EOFError."""
+    import json
+
+    m = load()
+    monkeypatch.setenv("AGY_INSTANCE_NAME", "Windows PC")
+    monkeypatch.setattr(m.sys.stdin, "isatty", lambda: True)
+
+    def no_answer(prompt=""):
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", no_answer)
+    m._wire_antigravity_remote_control(tmp_path)
+    settings = json.loads((tmp_path / "config.json").read_text())["userSettings"]
+    assert settings["remoteControlEnabled"] is True
+    assert settings["remoteControlHostname"] == "Windows PC"
+
+
+def test_restart_antigravity_daemon_hidden_stops_the_consoleless_daemon_then_starts_ours(monkeypatch):
+    """The daemon `agy remote-control start` leaves has no console: every MCP server it starts popped a window."""
+    m = load()
+    import _antigravity as ag
+
+    events = []
+    monkeypatch.setattr(ag, "daemon_pids", lambda: [111, 222])
+    monkeypatch.setattr(m.subprocess, "run", lambda cmd, **kw: events.append(cmd))
+    monkeypatch.setattr(ag, "ensure_daemon_running", lambda: events.append("ensure"))
+
+    ag.restart_daemon_hidden()
+    assert events == [
+        ["taskkill", "/T", "/F", "/PID", "111"],
+        ["taskkill", "/T", "/F", "/PID", "222"],
+        "ensure",
+    ]
