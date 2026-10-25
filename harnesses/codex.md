@@ -41,7 +41,7 @@ On Windows use the full path to `basic-memory.exe`
 
 Note: `graphify install` writes to `~/.codex/skills/graphify/` and ignores
 `$CODEX_HOME`. If your Codex runs with a non-default `CODEX_HOME` (e.g. a
-managed / orca setup), copy the folder over:
+launcher-managed copy of the config), copy the folder over:
 
 ```bash
 cp -r ~/.codex/skills/graphify "$CODEX_HOME/skills/"

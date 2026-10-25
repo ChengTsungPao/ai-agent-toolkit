@@ -1,7 +1,7 @@
 """Claude Code statusLine wrapper — installed by `setup.py statusline`.
 
 1. runs whatever statusLine command was configured *before* this one (saved to
-   `statusline-prev.txt` on install) so a host's own hook — e.g. Orca, which
+   `statusline-prev.txt` on install) so a host's own hook — e.g. a host app that
    uses the slot as a data pipe — keeps working;
 2. appends the context-usage segment from `ctx.py`.
 

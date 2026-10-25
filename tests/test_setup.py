@@ -649,13 +649,13 @@ def test_wire_memory_hub_hooks_antigravity(monkeypatch, tmp_path):
     m = load()
     monkeypatch.setenv("AGY_CONFIG_HOME", str(tmp_path))
     hooks_file = tmp_path / "hooks.json"
-    hooks_file.write_text(json.dumps({"orca-status": {"PreInvocation": []}}))
+    hooks_file.write_text(json.dumps({"other-tool-status": {"PreInvocation": []}}))
 
     hub = fake_hub(tmp_path / "hub")
     assert m._wire_memory_hub_hooks("antigravity", hub) == 0
 
     cfg = json.loads(hooks_file.read_text())
-    assert "orca-status" in cfg
+    assert "other-tool-status" in cfg
     assert "memory-hub" in cfg
     assert "SessionStart" in cfg["memory-hub"]
     assert "Stop" in cfg["memory-hub"]
@@ -664,7 +664,7 @@ def test_wire_memory_hub_hooks_antigravity(monkeypatch, tmp_path):
     # Test remove
     assert m._wire_memory_hub_hooks("antigravity", hub, action="remove") == 0
     cfg_after = json.loads(hooks_file.read_text())
-    assert "orca-status" in cfg_after
+    assert "other-tool-status" in cfg_after
     assert "memory-hub" not in cfg_after
 
 
@@ -713,7 +713,7 @@ def test_wire_memory_hub_hooks_codex_install_and_remove(monkeypatch, tmp_path):
     monkeypatch.setenv(__import__("_common").CODEX_HOME_ENV, str(tmp_path / "codex"))
     hooks_file = tmp_path / "codex" / "hooks.json"
     hooks_file.parent.mkdir()
-    own = {"matcher": "", "hooks": [{"type": "command", "command": "orca-hook.cmd"}]}
+    own = {"matcher": "", "hooks": [{"type": "command", "command": "other-tool-hook.cmd"}]}
     hooks_file.write_text(json.dumps({"hooks": {"SessionStart": [own]}}))
     hub = fake_hub(tmp_path / "hub")
 
