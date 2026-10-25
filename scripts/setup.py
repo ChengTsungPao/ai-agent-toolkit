@@ -528,7 +528,8 @@ def _wire_memorycore(harness: str, hub: tuple[Path, str]) -> int:
     args = f'"{server}"' if IS_WINDOWS else str(server)
     env_pairs = [f"--env {key}={value}" for key, value in _memorycore_entry(hub).get("env", {}).items()]
     if harness == "claude-code":
-        command = f"claude mcp add --scope user {' '.join(env_pairs)} memorycore -- {node_arg} {args}"
+        # claude's -e/--env is variadic: it must come after the server name or it swallows it
+        command = f"claude mcp add --scope user memorycore {' '.join(env_pairs)} -- {node_arg} {args}"
     else:
         command = f"codex mcp add {' '.join(env_pairs)} memorycore -- {node_arg} {args}"
     return run(command, display=f"{harness} memorycore MCP → {server}")

@@ -803,3 +803,15 @@ def test_wire_memorycore_removes_the_old_entry_first(monkeypatch, tmp_path):
     remove = events.index("claude mcp remove memorycore -s user")
     add = next(i for i, e in enumerate(events) if " mcp add " in e and "memorycore" in e)
     assert remove < add
+
+
+def test_wire_memorycore_puts_the_name_before_claudes_variadic_env(monkeypatch, tmp_path):
+    """`claude mcp add --env K=V memorycore -- ...` read `memorycore` as another env value and failed."""
+    m = load()
+    monkeypatch.setattr(m.subprocess, "run", lambda *a, **k: None)
+    monkeypatch.setenv("TDAI_TEAM_ID", "team-x")
+    commands = []
+    monkeypatch.setattr(m, "run", lambda cmd, **kw: commands.append(cmd) or 0)
+    m._wire_memorycore("claude-code", fake_hub(tmp_path / "hub"))
+    add = commands[-1]
+    assert add.index(" memorycore ") < add.index("--env TDAI_TEAM_ID=team-x") < add.index(" -- ")
