@@ -163,14 +163,14 @@ def _without_ours(cfg: dict, harness: str) -> dict:
 
 
 def _command(path: Path) -> str:
-    if path.suffix.lower() == ".cmd":  # a Windows adapter runs by itself: `node x.cmd` is a SyntaxError
-        p = str(path)  # cmd.exe: keep backslashes, a `/` would read as a switch
-        return f'"{p}"' if " " in p else p
     # Claude Code runs hooks through bash even on Windows, and bash eats the backslashes of an unquoted
-    # path (C:\Users\x -> C:Usersx). Node and cmd.exe both accept forward slashes, so use them.
+    # path (C:\Users\x -> C:Usersx). Node, cmd.exe and PowerShell all accept forward slashes, so use them.
     p = path.as_posix() if IS_WINDOWS else str(path)
+    quoted = f'"{p}"' if " " in p else p
+    if path.suffix.lower() == ".cmd":  # a Windows adapter runs by itself: `node x.cmd` is a SyntaxError
+        return quoted
     node = "node" if IS_WINDOWS else (shutil.which("node") or "node")
-    return f'{node} "{p}"' if " " in p else f"{node} {p}"
+    return f"{node} {quoted}"
 
 
 def wire_hooks(harness: str, hub: tuple[Path, str], action: str = "install") -> int:

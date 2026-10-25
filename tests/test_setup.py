@@ -906,4 +906,6 @@ def test_hook_script_path_uses_forward_slashes_on_windows(monkeypatch):
     assert "\\" not in cmd
     assert mh._command(PureWindowsPath(r"C:\Program Files\hub\hook.mjs")) == 'node "C:/Program Files/hub/hook.mjs"'
     adapter = mh._command(PureWindowsPath(r"C:\hub\agents\codex\hooks\memory-capture.cmd"))
-    assert adapter == r"C:\hub\agents\codex\hooks\memory-capture.cmd"  # cmd.exe adapter keeps backslashes
+    assert (
+        adapter == "C:/hub/agents/codex/hooks/memory-capture.cmd"
+    )  # runs by itself; same slashes for bash, cmd, PowerShell
