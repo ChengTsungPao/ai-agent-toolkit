@@ -57,8 +57,23 @@ def run(cmd: str, display: str | None = None, **kw) -> int:
     return subprocess.run(cmd, shell=True, **kw).returncode
 
 
+CODEX_HOME_ENV = f"{ENV_HOME.removesuffix('_HOME')}_CODEX_HOME"  # AI_AGENT_TOOLKIT_CODEX_HOME
+
+
 def codex_home() -> Path:
-    return Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    """The Codex config folder to wire: ~/.codex, or the folder named in $AI_AGENT_TOOLKIT_CODEX_HOME.
+
+    The shell's own CODEX_HOME is deliberately not used: terminals and launchers set it per session to
+    point Codex at a private copy of its config, and wiring that copy never reaches the real one."""
+    override = os.environ.get(CODEX_HOME_ENV)
+    return Path(override) if override else Path.home() / ".codex"
+
+
+def use_codex_home() -> Path:
+    """Export codex_home() so the `codex` commands we run (mcp add/remove) act on the same folder."""
+    path = codex_home()
+    os.environ["CODEX_HOME"] = str(path)
+    return path
 
 
 def agy_home() -> Path:

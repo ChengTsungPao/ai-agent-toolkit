@@ -64,6 +64,7 @@ from _common import (  # noqa: E402  (must follow the sys.path line above)
     agy_home as _agy_home,
     bold,
     codex_home as _codex_home,
+    use_codex_home as _use_codex_home,
     dim,
     green,
     red,
@@ -787,7 +788,7 @@ def wire_codex(tools) -> int:
     if shutil.which("codex") is None:
         print(red("  `codex` CLI not found."))
         return 1
-    codex_home = _codex_home()
+    codex_home = _use_codex_home()
     _install_skills(codex_home / "skills")
     for t in _mcp_tools(tools):
         if t["id"] == "basic-memory" and backend == "memorycore":
@@ -1135,6 +1136,8 @@ def cmd_unwire(args) -> int:
     if h == "antigravity":
         _unwire_antigravity(mcp_ids)
     elif h in ("claude-code", "codex"):
+        if h == "codex":
+            _use_codex_home()
         remove = "claude mcp remove {} -s user" if h == "claude-code" else "codex mcp remove {}"
         for i in mcp_ids:
             subprocess.run(remove.format(i), shell=True, capture_output=True, **WIN_FLAGS)

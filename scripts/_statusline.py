@@ -111,5 +111,5 @@ def cmd_statusline(args) -> int:
     print(green(f"  statusline → {STATUSLINE_DIR}"))
     print(green(f"  {_CLAUDE_SETTINGS} statusLine → {our_cmd}"))
     print(dim("  shows ' | ctx NN%' at the bottom next turn (restart the session if not)"))
-    print(dim("  if a host (Orca) rewrites settings.json, re-run: setup.py statusline"))
+    print(dim("  if a host app rewrites settings.json, re-run: setup.py statusline"))
     return 0

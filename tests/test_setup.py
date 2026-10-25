@@ -649,13 +649,13 @@ def test_wire_memory_hub_hooks_antigravity(monkeypatch, tmp_path):
     m = load()
     monkeypatch.setenv("AGY_CONFIG_HOME", str(tmp_path))
     hooks_file = tmp_path / "hooks.json"
-    hooks_file.write_text(json.dumps({"orca-status": {"PreInvocation": []}}))
+    hooks_file.write_text(json.dumps({"other-tool-status": {"PreInvocation": []}}))
 
     hub = fake_hub(tmp_path / "hub")
     assert m._wire_memory_hub_hooks("antigravity", hub) == 0
 
     cfg = json.loads(hooks_file.read_text())
-    assert "orca-status" in cfg
+    assert "other-tool-status" in cfg
     assert "memory-hub" in cfg
     assert "SessionStart" in cfg["memory-hub"]
     assert "Stop" in cfg["memory-hub"]
@@ -664,7 +664,7 @@ def test_wire_memory_hub_hooks_antigravity(monkeypatch, tmp_path):
     # Test remove
     assert m._wire_memory_hub_hooks("antigravity", hub, action="remove") == 0
     cfg_after = json.loads(hooks_file.read_text())
-    assert "orca-status" in cfg_after
+    assert "other-tool-status" in cfg_after
     assert "memory-hub" not in cfg_after
 
 
@@ -710,10 +710,10 @@ def test_wire_memory_hub_hooks_codex_install_and_remove(monkeypatch, tmp_path):
     import json
 
     m = load()
-    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex"))
+    monkeypatch.setenv(__import__("_common").CODEX_HOME_ENV, str(tmp_path / "codex"))
     hooks_file = tmp_path / "codex" / "hooks.json"
     hooks_file.parent.mkdir()
-    own = {"matcher": "", "hooks": [{"type": "command", "command": "orca-hook.cmd"}]}
+    own = {"matcher": "", "hooks": [{"type": "command", "command": "other-tool-hook.cmd"}]}
     hooks_file.write_text(json.dumps({"hooks": {"SessionStart": [own]}}))
     hub = fake_hub(tmp_path / "hub")
 
@@ -909,3 +909,38 @@ def test_hook_script_path_uses_forward_slashes_on_windows(monkeypatch):
     assert (
         adapter == "C:/hub/agents/codex/hooks/memory-capture.cmd"
     )  # runs by itself; same slashes for bash, cmd, PowerShell
+
+
+def test_codex_home_is_the_native_folder_whatever_the_shell_sets(monkeypatch, tmp_path):
+    """A shell's CODEX_HOME can point at a private copy that is rebuilt later; wire ~/.codex instead."""
+    load()
+    import _common
+
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "somewhere" / "private-copy"))
+    monkeypatch.delenv(_common.CODEX_HOME_ENV, raising=False)
+    assert _common.codex_home() == tmp_path / ".codex"
+
+    monkeypatch.setenv(_common.CODEX_HOME_ENV, str(tmp_path / "mine"))  # an explicit choice for the toolkit
+    assert _common.codex_home() == tmp_path / "mine"
+    assert _common.CODEX_HOME_ENV.endswith("_CODEX_HOME")
+
+
+def test_wire_codex_runs_the_codex_cli_against_the_native_home(monkeypatch, tmp_path):
+    """`codex mcp add` reads CODEX_HOME itself, so the variable must be corrected for the child too."""
+    import os
+
+    m = load()
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "somewhere" / "private-copy"))
+    monkeypatch.setattr(m, "_memory_backend", lambda: ("basic-memory", None))
+    monkeypatch.setattr(m.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(m, "_install_skills", lambda d: None)
+    monkeypatch.setattr(m, "_install_graphify_skill", lambda h: None)
+    monkeypatch.setattr(m, "_warn_missing_env", lambda t: None)
+    monkeypatch.setattr(m, "_wire_basic_memory_hooks", lambda *a, **k: 0)
+    monkeypatch.setattr(m.subprocess, "run", lambda *a, **k: None)
+    seen = []
+    monkeypatch.setattr(m, "run", lambda cmd, **kw: seen.append(os.environ["CODEX_HOME"]) or 0)
+    m.wire_codex([{"id": "demo", "mcp": {"command": "demo", "args": []}}])
+    assert seen and all(v == str(tmp_path / ".codex") for v in seen)

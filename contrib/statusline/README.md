@@ -35,14 +35,14 @@ version used — is resolved from PATH and avoids this.
 - **`uv`** (the repo's one prerequisite) or a real `python3` / `python` on PATH.
   No shell is involved for a plain Claude Code install.
 - **`sh` or `bash`** — only when chaining to a previous command (e.g. under a
-  host like Orca). That command is POSIX `sh` syntax; on Windows this is the
+  host app that already set its own statusLine). That command is POSIX `sh` syntax; on Windows this is the
   Git Bash that such hosts already require. If neither resolves, only the
   previous segment is skipped — the `ctx` segment still renders.
 
 ## Caveats
 
-- **Orca** owns the statusLine slot as a data pipe and may **rewrite
+- A **host app** that owns the statusLine slot (as a data pipe) may **rewrite
   `settings.json`** — if the segment disappears, re-run `setup.py statusline`.
-- **macOS**: works on plain Claude Code. macOS + Orca is **untested** (whether
-  Orca passes Claude Code's statusLine through).
+- **macOS**: works on plain Claude Code. Under a host app that wraps the statusLine it is
+  **untested** (whether the host passes Claude Code's statusLine through).
 - The number is the context size *at the start of the last turn* — lags by one.
