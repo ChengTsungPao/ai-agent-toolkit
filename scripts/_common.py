@@ -57,8 +57,25 @@ def run(cmd: str, display: str | None = None, **kw) -> int:
     return subprocess.run(cmd, shell=True, **kw).returncode
 
 
+def _orca_managed_codex_home(path: str) -> bool:
+    """Orca (the terminal app) points CODEX_HOME at its own copy of the Codex config and rebuilds it,
+    so anything wired there is lost. That copy is not the user's Codex config."""
+    return os.environ.get("ORCA_CODEX_HOME") == path or "codex-runtime-home" in Path(path).parts
+
+
 def codex_home() -> Path:
-    return Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    """The Codex config folder to wire: CODEX_HOME, unless that is Orca's managed copy, else ~/.codex."""
+    env = os.environ.get("CODEX_HOME")
+    if env and not _orca_managed_codex_home(env):
+        return Path(env)
+    return Path.home() / ".codex"
+
+
+def use_codex_home() -> Path:
+    """Export codex_home() so the `codex` commands we run (mcp add/remove) act on the same folder."""
+    path = codex_home()
+    os.environ["CODEX_HOME"] = str(path)
+    return path
 
 
 def agy_home() -> Path:

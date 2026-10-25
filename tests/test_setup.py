@@ -909,3 +909,44 @@ def test_hook_script_path_uses_forward_slashes_on_windows(monkeypatch):
     assert (
         adapter == "C:/hub/agents/codex/hooks/memory-capture.cmd"
     )  # runs by itself; same slashes for bash, cmd, PowerShell
+
+
+def test_codex_home_ignores_the_copy_orca_manages(monkeypatch, tmp_path):
+    """Orca points CODEX_HOME at its own rebuilt copy: wiring there is lost, so wire ~/.codex instead."""
+    load()
+    import _common
+
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    orca = tmp_path / "AppData" / "orca" / "codex-runtime-home" / "home"
+    monkeypatch.setenv("CODEX_HOME", str(orca))
+    assert _common.codex_home() == tmp_path / ".codex"
+
+    monkeypatch.setenv("ORCA_CODEX_HOME", str(tmp_path / "other"))  # also by Orca's own marker
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "other"))
+    assert _common.codex_home() == tmp_path / ".codex"
+
+    monkeypatch.delenv("ORCA_CODEX_HOME")
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "mine"))  # a home the user chose is respected
+    assert _common.codex_home() == tmp_path / "mine"
+    monkeypatch.delenv("CODEX_HOME")
+    assert _common.codex_home() == tmp_path / ".codex"
+
+
+def test_wire_codex_runs_the_codex_cli_against_the_native_home(monkeypatch, tmp_path):
+    """`codex mcp add` reads CODEX_HOME itself, so the variable must be corrected for the child too."""
+    import os
+
+    m = load()
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "orca" / "codex-runtime-home" / "home"))
+    monkeypatch.setattr(m, "_memory_backend", lambda: ("basic-memory", None))
+    monkeypatch.setattr(m.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(m, "_install_skills", lambda d: None)
+    monkeypatch.setattr(m, "_install_graphify_skill", lambda h: None)
+    monkeypatch.setattr(m, "_warn_missing_env", lambda t: None)
+    monkeypatch.setattr(m, "_wire_basic_memory_hooks", lambda *a, **k: 0)
+    monkeypatch.setattr(m.subprocess, "run", lambda *a, **k: None)
+    seen = []
+    monkeypatch.setattr(m, "run", lambda cmd, **kw: seen.append(os.environ["CODEX_HOME"]) or 0)
+    m.wire_codex([{"id": "demo", "mcp": {"command": "demo", "args": []}}])
+    assert seen and all(v == str(tmp_path / ".codex") for v in seen)
