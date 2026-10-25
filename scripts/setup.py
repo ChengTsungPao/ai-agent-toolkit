@@ -722,7 +722,22 @@ def wire_claude_code(tools) -> int:
         run(" ".join(base.format(env).split()), display=" ".join(base.format(env_masked).split()))
         _warn_missing_env(t)
     _install_graphify_skill("claude-code")
-    return 0
+    return _wire_basic_memory_hooks(tools, "claude")
+
+
+def _wire_basic_memory_hooks(tools, harness: str, action: str = "install") -> int:
+    """Install/remove Basic Memory lifecycle hooks when its MCP is managed."""
+    if not any(t.get("id") == "basic-memory" for t in tools):
+        return 0
+    command = shutil.which("basic-memory")
+    if not command:
+        print(yellow(f"  `basic-memory` CLI not found; skipped {harness} lifecycle hooks"))
+        return 0
+    quoted = f'"{command}"' if IS_WINDOWS else command
+    rc = run(f"{quoted} hook {action} --harness {harness}")
+    if rc != 0:
+        print(yellow(f"  Basic Memory {harness} hook {action} failed"))
+    return rc
 
 
 def wire_codex(tools) -> int:
@@ -742,7 +757,7 @@ def wire_codex(tools) -> int:
             print(yellow(f"  `codex mcp add` failed for {t['id']} — add manually to {codex_home}/config.toml"))
         _warn_missing_env(t)
     _install_graphify_skill("codex")
-    return 0
+    return _wire_basic_memory_hooks(tools, "codex")
 
 
 def wire_antigravity(tools) -> int:
@@ -1197,6 +1212,11 @@ def cmd_unwire(args) -> int:
         print(dim(f"  guidelines block: AGENTS.md removed={_strip_block(agents)}"))
         if h == "claude-code":
             print(dim(f"  guidelines block: CLAUDE.md removed={_strip_block(Path.home() / '.claude' / 'CLAUDE.md')}"))
+        _wire_basic_memory_hooks(
+            [{"id": "basic-memory"}] if "basic-memory" in mcp_ids else [],
+            "claude" if h == "claude-code" else "codex",
+            "remove",
+        )
     else:
         print(dim(f"  {h}: manual — remove the MCP entries, skill dirs, and guidelines block yourself"))
 
