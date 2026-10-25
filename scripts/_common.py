@@ -23,6 +23,7 @@ CONFIG = Path(os.environ.get(ENV_HOME) or Path.home() / f".{REPO_NAME}") / "conf
 
 OS = {"Windows": "windows", "Darwin": "macos", "Linux": "linux"}.get(platform.system(), "linux")
 IS_WINDOWS = OS == "windows"
+WIN_FLAGS = {"creationflags": subprocess.CREATE_NO_WINDOW} if IS_WINDOWS else {}  # no console pop-ups
 
 if IS_WINDOWS:
     os.system("")  # enable ANSI escape processing in the Windows console
