@@ -1,5 +1,7 @@
 # Basic Memory (fallback)
 
+See [memory-hub.md](memory-hub.md) for how the toolkit chooses between the hub and Basic Memory.
+
 `setup.py wire claude-code`, `setup.py wire codex`, and
 `setup.py wire antigravity` prefer the local Personal
 Memory Hub when its MCP server and MemoryCore health endpoint are available.
