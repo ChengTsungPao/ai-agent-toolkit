@@ -677,6 +677,8 @@ def test_memory_hub_command_quoting():
     cmd_no_space = _memory_hub._command(p_no_space)
     assert '"' not in cmd_no_space
     assert cmd_no_space.endswith(str(p_no_space))
+    if _memory_hub.IS_WINDOWS:
+        assert cmd_no_space.startswith("node ")
 
     p_with_space = Path("C:/test path/with space.mjs")
     cmd_with_space = _memory_hub._command(p_with_space)
