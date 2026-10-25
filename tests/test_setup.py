@@ -833,3 +833,19 @@ def test_wire_antigravity_remote_control_survives_a_stdin_that_cannot_answer(mon
     settings = json.loads((tmp_path / "config.json").read_text())["userSettings"]
     assert settings["remoteControlEnabled"] is True
     assert settings["remoteControlHostname"] == "Windows PC"
+
+
+def test_restart_antigravity_daemon_hidden_stops_the_consoleless_daemon_then_starts_ours(monkeypatch):
+    """The daemon `agy remote-control start` leaves has no console: every MCP server it starts popped a window."""
+    m = load()
+    events = []
+    monkeypatch.setattr(m, "_antigravity_daemon_pids", lambda: [111, 222])
+    monkeypatch.setattr(m.subprocess, "run", lambda cmd, **kw: events.append(cmd))
+    monkeypatch.setattr(m, "_ensure_antigravity_daemon_running", lambda: events.append("ensure"))
+
+    m._restart_antigravity_daemon_hidden()
+    assert events == [
+        ["taskkill", "/T", "/F", "/PID", "111"],
+        ["taskkill", "/T", "/F", "/PID", "222"],
+        "ensure",
+    ]

@@ -919,6 +919,32 @@ def _ensure_antigravity_daemon_running() -> None:
         pass
 
 
+def _antigravity_daemon_pids() -> list[int]:
+    """Process ids of the running `agy remote-control serve` daemons (Windows)."""
+    script = (
+        "(Get-CimInstance Win32_Process -Filter \"name like '%agy%'\") | "
+        "Where-Object { $_.CommandLine -like '*remote-control serve*' } | "
+        "ForEach-Object { $_.ProcessId }"
+    )
+    res = subprocess.run(
+        ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+        capture_output=True,
+        text=True,
+        **WIN_FLAGS,
+    )
+    return [int(x) for x in res.stdout.split() if x.isdigit()]
+
+
+def _restart_antigravity_daemon_hidden() -> None:
+    """Windows: `agy remote-control start` leaves a daemon that has no console, so every MCP server it
+    launches (node.EXE, chrome-devtools-mcp, notebooklm-mcp ...) opens its own visible console window.
+    Stop it (and its children) and start it the way `_ensure_antigravity_daemon_running` does, with a
+    hidden console that the children share."""
+    for pid in _antigravity_daemon_pids():
+        subprocess.run(["taskkill", "/T", "/F", "/PID", str(pid)], capture_output=True, **WIN_FLAGS)
+    _ensure_antigravity_daemon_running()
+
+
 def _wire_antigravity_remote_control(home: Path) -> None:
     """Configure Antigravity Remote Control daemon with an instance name.
 
@@ -985,7 +1011,10 @@ def _wire_antigravity_remote_control(home: Path) -> None:
 
     cmd = f'agy remote-control start --name "{instance_name}"'
     r = subprocess.run(cmd, shell=True, capture_output=True, text=True, **WIN_FLAGS)
-    _ensure_antigravity_daemon_running()
+    if IS_WINDOWS:
+        _restart_antigravity_daemon_hidden()
+    else:
+        _ensure_antigravity_daemon_running()
     if r.returncode == 0:
         print(green(f"  remote-control → daemon started as '{instance_name}'"))
     else:
