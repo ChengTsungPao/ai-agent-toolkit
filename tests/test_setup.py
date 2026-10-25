@@ -593,8 +593,8 @@ def test_ensure_antigravity_daemon_running_platform_specific(monkeypatch):
         assert len(ran_run) == 1
         call_args = ran_run[0][0]
         assert call_args[0] == "powershell"
-        assert "Invoke-CimMethod" in call_args[4]
         assert "Win32_Process" in call_args[4]
+        assert "Win32_ProcessStartup" in call_args[4]
         assert "remote-control serve" in call_args[4]
         assert ran_popen == []
     else:
@@ -619,3 +619,152 @@ def test_ensure_antigravity_daemon_running_missing_binary(monkeypatch):
 
     m._ensure_antigravity_daemon_running()
     assert ran == []
+
+
+def fake_hub(root):
+    """A personal-memory-hub checkout with just the files `wire` looks for."""
+    for rel in (
+        "agents/claude-code/mcp/server.mjs",
+        "agents/claude-code/hooks/memory-recall.mjs",
+        "agents/claude-code/hooks/memory-capture.mjs",
+        "agents/codex/hooks/memory-capture.mjs",
+        "agents/antigravity/hooks/memory-recall.mjs",
+        "agents/antigravity/hooks/memory-capture.mjs",
+    ):
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_text("")
+    return root / "agents" / "claude-code" / "mcp" / "server.mjs", "node"
+
+
+def test_wire_memory_hub_hooks_antigravity(monkeypatch, tmp_path):
+    import json
+
+    m = load()
+    monkeypatch.setenv("AGY_CONFIG_HOME", str(tmp_path))
+    hooks_file = tmp_path / "hooks.json"
+    hooks_file.write_text(json.dumps({"orca-status": {"PreInvocation": []}}))
+
+    hub = fake_hub(tmp_path / "hub")
+    assert m._wire_memory_hub_hooks("antigravity", hub) == 0
+
+    cfg = json.loads(hooks_file.read_text())
+    assert "orca-status" in cfg
+    assert "memory-hub" in cfg
+    assert "SessionStart" in cfg["memory-hub"]
+    assert "Stop" in cfg["memory-hub"]
+    assert "hooks" not in cfg
+
+    # Test remove
+    assert m._wire_memory_hub_hooks("antigravity", hub, action="remove") == 0
+    cfg_after = json.loads(hooks_file.read_text())
+    assert "orca-status" in cfg_after
+    assert "memory-hub" not in cfg_after
+
+
+def test_wire_memory_hub_hooks_claude_code(monkeypatch, tmp_path):
+    import json
+    from pathlib import Path
+
+    m = load()
+    fake_claude_dir = tmp_path / ".claude"
+    fake_claude_dir.mkdir(parents=True)
+    settings_file = fake_claude_dir / "settings.json"
+    settings_file.write_text(json.dumps({"hooks": {"SessionStart": [{"type": "user"}]}}))
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+
+    hub = fake_hub(tmp_path / "hub")
+    assert m._wire_memory_hub_hooks("claude-code", hub) == 0
+
+    cfg = json.loads(settings_file.read_text())
+    session_starts = cfg["hooks"]["SessionStart"]
+    assert len(session_starts) == 2
+    assert session_starts[0] == {"type": "user"}
+    assert "memory-recall.mjs" in session_starts[1]["hooks"][0]["command"]
+
+
+def test_wire_memory_hub_hooks_codex_install_and_remove(monkeypatch, tmp_path):
+    import json
+
+    m = load()
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex"))
+    hooks_file = tmp_path / "codex" / "hooks.json"
+    hooks_file.parent.mkdir()
+    own = {"matcher": "", "hooks": [{"type": "command", "command": "orca-hook.cmd"}]}
+    hooks_file.write_text(json.dumps({"hooks": {"SessionStart": [own]}}))
+    hub = fake_hub(tmp_path / "hub")
+
+    assert m._wire_memory_hub_hooks("codex", hub) == 0
+    hooks = json.loads(hooks_file.read_text())["hooks"]
+    assert hooks["SessionStart"][0] == own
+    assert "claude-code" in hooks["SessionStart"][1]["hooks"][0]["command"]  # recall is shared
+    assert "codex" in hooks["Stop"][0]["hooks"][0]["command"]  # capture is Codex's own
+    assert (tmp_path / "codex" / "hooks.json.bak").exists()
+
+    assert m._wire_memory_hub_hooks("codex", hub, action="remove") == 0
+    assert json.loads(hooks_file.read_text()) == {"hooks": {"SessionStart": [own]}}  # Stop key gone, ours gone
+
+
+def test_wire_memory_hub_hooks_reinstall_does_not_duplicate(monkeypatch, tmp_path):
+    import json
+
+    m = load()
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    hub = fake_hub(tmp_path / "hub")
+    m._wire_memory_hub_hooks("claude-code", hub)
+    m._wire_memory_hub_hooks("claude-code", hub)
+    hooks = json.loads((tmp_path / ".claude" / "settings.json").read_text())["hooks"]
+    assert len(hooks["SessionStart"]) == 1 and len(hooks["Stop"]) == 1
+
+
+def test_wire_memory_hub_hooks_never_overwrite_an_unreadable_file(monkeypatch, tmp_path):
+    m = load()
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    settings = tmp_path / ".claude" / "settings.json"
+    settings.parent.mkdir()
+    settings.write_text('{"model": "opus", "env": {')  # half-written / not JSON
+    hub = fake_hub(tmp_path / "hub")
+
+    assert m._wire_memory_hub_hooks("claude-code", hub) == 1
+    assert m._wire_memory_hub_hooks("claude-code", hub, action="remove") == 1
+    assert settings.read_text() == '{"model": "opus", "env": {'
+    assert not (tmp_path / ".claude" / "settings.json.bak").exists()
+
+
+def test_wire_memory_hub_hooks_remove_creates_nothing_and_keeps_non_ascii(monkeypatch, tmp_path):
+    import json
+
+    m = load()
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    hub = fake_hub(tmp_path / "hub")
+    assert m._wire_memory_hub_hooks("claude-code", hub, action="remove") == 0
+    assert not (tmp_path / ".claude").exists()  # nothing to remove, nothing created
+    settings = tmp_path / ".claude" / "settings.json"
+    settings.parent.mkdir()
+    settings.write_text(json.dumps({"statusLine": "狀態"}, ensure_ascii=False), encoding="utf-8")
+    m._wire_memory_hub_hooks("claude-code", hub)
+    assert "狀態" in settings.read_text(encoding="utf-8")  # kept as written, not escaped
+
+
+def test_wire_memory_hub_hooks_skips_a_hub_without_the_scripts(monkeypatch, tmp_path):
+    m = load()
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    old_hub = tmp_path / "hub" / "agents" / "claude-code" / "mcp" / "server.mjs"
+    assert m._wire_memory_hub_hooks("codex", (old_hub, "node")) == 1
+    assert not (tmp_path / ".claude").exists()
+
+
+def test_wire_codex_with_the_hub_removes_basic_memory_hooks(monkeypatch, tmp_path):
+    m = load()
+    hub = fake_hub(tmp_path / "hub")
+    monkeypatch.setattr(m, "_memory_backend", lambda: ("memorycore", hub))
+    monkeypatch.setattr(m.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(m, "_install_skills", lambda d: None)
+    monkeypatch.setattr(m, "_install_graphify_skill", lambda h: None)
+    monkeypatch.setattr(m, "_warn_missing_env", lambda t: None)
+    monkeypatch.setattr(m, "_wire_memory_hub_hooks", lambda *a, **k: 0)
+    monkeypatch.setattr(m, "_wire_memorycore", lambda *a: 0)
+    commands = []
+    monkeypatch.setattr(m, "run", lambda cmd, **kw: commands.append(cmd) or 0)
+
+    assert m.wire_codex([{"id": "basic-memory", "mcp": {"command": "basic-memory"}}]) == 0
+    assert any(c.endswith("hook remove --harness codex") for c in commands)

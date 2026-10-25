@@ -48,8 +48,6 @@ import subprocess
 import sys
 import tempfile
 import tomllib
-import urllib.error
-import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # sibling modules resolve however this is loaded
@@ -62,12 +60,20 @@ from _common import (  # noqa: E402  (must follow the sys.path line above)
     REPO,
     REPO_NAME,
     SKILLS_DIR,
+    agy_home as _agy_home,
     bold,
+    codex_home as _codex_home,
     dim,
     green,
     red,
     run,
     yellow,
+)
+from _memory_hub import (  # noqa: E402  (Personal Memory Hub: detection + hook registration; see docs/memory-hub.md)
+    NO_HUB,
+    hub_server as _memory_hub_server,
+    memorycore_entry as _memorycore_entry,
+    wire_hooks as _wire_memory_hub_hooks,
 )
 from _statusline import cmd_statusline  # noqa: E402  (kept here so setup.py stays the only orchestrator)
 
@@ -498,23 +504,6 @@ def _mcp_env(t: dict, flag: str) -> tuple[str, str]:
     return real, masked
 
 
-def _memory_hub_server() -> tuple[Path, str] | None:
-    """Return the local Memory Hub MCP server when its core is reachable."""
-    root = Path(os.environ.get("PERSONAL_MEMORY_HUB_DIR", Path.home() / "personal-memory-hub"))
-    server = root / "agents" / "claude-code" / "mcp" / "server.mjs"
-    node = shutil.which("node")
-    if not server.is_file() or not node:
-        return None
-    endpoint = os.environ.get("TDAI_ENDPOINT", "http://127.0.0.1:8420").rstrip("/")
-    try:
-        with urllib.request.urlopen(f"{endpoint}/health", timeout=2) as response:
-            if response.status != 200:
-                return None
-    except (OSError, urllib.error.URLError):
-        return None
-    return server, node
-
-
 def _memory_backend() -> tuple[str, tuple[Path, str] | None]:
     hub = _memory_hub_server()
     return ("memorycore", hub) if hub else ("basic-memory", None)
@@ -523,27 +512,6 @@ def _memory_backend() -> tuple[str, tuple[Path, str] | None]:
 def _remove_memory_mcp(harness: str, name: str) -> None:
     command = f"claude mcp remove {name} -s user" if harness == "claude-code" else f"codex mcp remove {name}"
     subprocess.run(command, shell=True, capture_output=True, **WIN_FLAGS)
-
-
-def _memorycore_entry(hub: tuple[Path, str]) -> dict:
-    server, node = hub
-    env = {}
-    for key in (
-        "TDAI_ENDPOINT",
-        "TDAI_KNOWLEDGE_ENDPOINT",
-        "TDAI_SERVICE_ID",
-        "TDAI_TEAM_ID",
-        "TDAI_USER_ID",
-        "TDAI_ADMIN_KEY_FILE",
-        "TDAI_STATE_DIR",
-        "TDAI_TIMEOUT_MS",
-    ):
-        if os.environ.get(key):
-            env[key] = os.environ[key]
-    entry = {"command": node, "args": [str(server)]}
-    if env:
-        entry["env"] = env
-    return entry
 
 
 def _wire_memorycore(harness: str, hub: tuple[Path, str]) -> int:
@@ -648,15 +616,6 @@ def env_repo_pointer() -> str:
         f"`{r}/manifest.toml` (4 sections: `[guidelines]` / `[[tool]]` / "
         "`[[skill]]` / `[[plugin]]`)."
     )
-
-
-def _codex_home() -> Path:
-    return Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
-
-
-def _agy_home() -> Path:
-    """Antigravity's global customization root (skills/, mcp_config.json, AGENTS.md)."""
-    return Path(os.environ.get("AGY_CONFIG_HOME", Path.home() / ".gemini" / "config"))
 
 
 def _install_guidelines(harness: str) -> None:
@@ -792,7 +751,10 @@ def wire_claude_code(tools) -> int:
         _warn_missing_env(t)
     _install_graphify_skill("claude-code")
     if backend == "memorycore":
+        _wire_basic_memory_hooks(tools, "claude", "remove")
+        _wire_memory_hub_hooks("claude-code", hub)
         return _wire_memorycore("claude-code", hub)
+    _wire_memory_hub_hooks("claude-code", NO_HUB, "remove")
     _remove_memory_mcp("claude-code", "memorycore")
     return _wire_basic_memory_hooks(tools, "claude")
 
@@ -834,7 +796,10 @@ def wire_codex(tools) -> int:
         _warn_missing_env(t)
     _install_graphify_skill("codex")
     if backend == "memorycore":
+        _wire_basic_memory_hooks(tools, "codex", "remove")
+        _wire_memory_hub_hooks("codex", hub)
         return _wire_memorycore("codex", hub)
+    _wire_memory_hub_hooks("codex", NO_HUB, "remove")
     _remove_memory_mcp("codex", "memorycore")
     return _wire_basic_memory_hooks(tools, "codex")
 
@@ -875,9 +840,12 @@ def wire_antigravity(tools) -> int:
         _warn_missing_env(t)
     if backend == "memorycore":
         servers.pop("basic-memory", None)
-        servers["memorycore"] = _memorycore_entry(hub)
+        existing_env = (servers.get("memorycore") or {}).get("env")
+        servers["memorycore"] = _memorycore_entry(hub, existing_env)
+        _wire_memory_hub_hooks("antigravity", hub)
     else:
         servers.pop("memorycore", None)
+        _wire_memory_hub_hooks("antigravity", NO_HUB, "remove")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
     _install_graphify_skill("antigravity")
@@ -918,10 +886,11 @@ def _ensure_antigravity_daemon_running() -> None:
         if IS_WINDOWS:
             # On Windows, spawn via WMI to detach from current session/console job
             ps_script = (
-                "$cfg = New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly "
-                "-Property @{ShowWindow = 0; CreateFlags = 0x210}; "
-                "Invoke-CimMethod -ClassName Win32_Process -MethodName Create "
-                f"-Arguments @{{CommandLine = '\"{agy_exe}\" remote-control serve'; ProcessStartupInformation = $cfg}}"
+                "$s = [wmiclass]'Win32_ProcessStartup'; "
+                "$cfg = $s.CreateInstance(); "
+                "$cfg.ShowWindow = 0; $cfg.CreateFlags = 0x210; "
+                "$p = [wmiclass]'Win32_Process'; "
+                f"$null = $p.Create('\"{agy_exe}\" remote-control serve', $null, $cfg)"
             )
             subprocess.run(
                 ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script],
@@ -1308,6 +1277,7 @@ def cmd_unwire(args) -> int:
             "claude" if h == "claude-code" else "codex",
             "remove",
         )
+        _wire_memory_hub_hooks(h, NO_HUB, "remove")
         _remove_memory_mcp(h, "memorycore")
     else:
         print(dim(f"  {h}: manual — remove the MCP entries, skill dirs, and guidelines block yourself"))

@@ -34,7 +34,7 @@ it, then runs everything on a pinned Python.
 |---|---|---|
 | **uv** | tool | Python toolchain; every other CLI is an isolated `uv tool` |
 | **Node.js** | prereq | not auto-installed — needed only by the npm-based MCP servers below ([`docs/node.md`](docs/node.md)) |
-| **Memory Hub / Basic Memory** | MCP | prefers the local Personal Memory Hub; falls back to private, local, **human-editable** Basic Memory |
+| **Memory Hub / Basic Memory** | MCP | prefers the local Personal Memory Hub (MCP + lifecycle hooks, see [`docs/memory-hub.md`](docs/memory-hub.md)); falls back to private, local, **human-editable** Basic Memory |
 | **Notion MCP** | MCP | official `@notionhq/notion-mcp-server`, runs locally — read/write Notion pages & DBs |
 | **Chrome DevTools MCP** | MCP | drive/attach a local Chrome — navigate, screenshot, console, Lighthouse, perf traces |
 | **Playwright MCP** | MCP | `@playwright/mcp` — cross-browser automation off the a11y tree; auto-wait, `--codegen` (overlaps Chrome DevTools MCP; kept side by side) |
