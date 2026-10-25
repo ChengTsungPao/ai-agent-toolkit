@@ -163,9 +163,12 @@ def _without_ours(cfg: dict, harness: str) -> dict:
 
 
 def _command(path: Path) -> str:
-    node = "node" if IS_WINDOWS else (shutil.which("node") or "node")
     p = str(path)
-    return f'{node} "{p}"' if " " in p else f"{node} {p}"
+    quoted = f'"{p}"' if " " in p else p
+    if path.suffix.lower() == ".cmd":  # a Windows adapter runs by itself: `node x.cmd` is a SyntaxError
+        return quoted
+    node = "node" if IS_WINDOWS else (shutil.which("node") or "node")
+    return f"{node} {quoted}"
 
 
 def wire_hooks(harness: str, hub: tuple[Path, str], action: str = "install") -> int:
