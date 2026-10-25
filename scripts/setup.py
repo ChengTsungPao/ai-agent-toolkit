@@ -523,6 +523,7 @@ def _remove_memory_mcp(harness: str, name: str) -> None:
 def _wire_memorycore(harness: str, hub: tuple[Path, str]) -> int:
     server, node = hub
     _remove_memory_mcp(harness, "basic-memory")
+    _remove_memory_mcp(harness, "memorycore")  # `mcp add` fails on a name that already exists
     node_arg = f'"{node}"' if IS_WINDOWS else node
     args = f'"{server}"' if IS_WINDOWS else str(server)
     env_pairs = [f"--env {key}={value}" for key, value in _memorycore_entry(hub).get("env", {}).items()]

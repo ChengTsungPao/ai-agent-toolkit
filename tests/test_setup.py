@@ -790,3 +790,16 @@ def test_mcp_command_with_a_space_in_its_path_is_quoted(monkeypatch):
     assert len(add) == 2
     for c in add:
         assert r'-- "C:\Program Files\nodejs\node.EXE" server.js "C:\My Folder\x.js"' in c
+
+
+def test_wire_memorycore_removes_the_old_entry_first(monkeypatch, tmp_path):
+    """Re-running wire failed (exit 1) because `mcp add memorycore` found the existing entry."""
+    m = load()
+    events = []
+    monkeypatch.setattr(m.subprocess, "run", lambda cmd, **kw: events.append(cmd))
+    monkeypatch.setattr(m, "run", lambda cmd, **kw: events.append(cmd) or 0)
+    hub = fake_hub(tmp_path / "hub")
+    assert m._wire_memorycore("claude-code", hub) == 0
+    remove = events.index("claude mcp remove memorycore -s user")
+    add = next(i for i, e in enumerate(events) if " mcp add " in e and "memorycore" in e)
+    assert remove < add
