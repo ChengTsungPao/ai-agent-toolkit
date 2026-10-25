@@ -878,3 +878,14 @@ def test_restart_antigravity_daemon_hidden_stops_the_consoleless_daemon_then_sta
         ["taskkill", "/T", "/F", "/PID", "222"],
         "ensure",
     ]
+
+
+def test_hook_command_runs_a_cmd_adapter_directly_but_a_script_through_node():
+    r"""`node ...\memory-capture.cmd` failed with SyntaxError: node read the batch file as JavaScript."""
+    load()
+    import _memory_hub as mh
+
+    cmd = mh._command(Path(r"C:\hub\agents\codex\hooks\memory-capture.cmd"))
+    assert "node" not in cmd and cmd.endswith("memory-capture.cmd")
+    assert mh._command(Path(r"C:\Program Files\hub\hook.cmd")).startswith('"')  # quoted when it has a space
+    assert mh._command(Path("/hub/agents/claude-code/hooks/memory-capture.mjs")).split()[0].endswith("node")
