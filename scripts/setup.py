@@ -846,6 +846,7 @@ def wire_antigravity(tools) -> int:
     (hand-added ones) are left alone; only manifest ids are (re)written.
     """
     import json
+
     backend, hub = _memory_backend()
 
     if shutil.which("agy") is None:
