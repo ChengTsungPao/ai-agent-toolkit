@@ -57,18 +57,16 @@ def run(cmd: str, display: str | None = None, **kw) -> int:
     return subprocess.run(cmd, shell=True, **kw).returncode
 
 
-def _orca_managed_codex_home(path: str) -> bool:
-    """Orca (the terminal app) points CODEX_HOME at its own copy of the Codex config and rebuilds it,
-    so anything wired there is lost. That copy is not the user's Codex config."""
-    return os.environ.get("ORCA_CODEX_HOME") == path or "codex-runtime-home" in Path(path).parts
+CODEX_HOME_ENV = f"{ENV_HOME.removesuffix('_HOME')}_CODEX_HOME"  # AI_AGENT_TOOLKIT_CODEX_HOME
 
 
 def codex_home() -> Path:
-    """The Codex config folder to wire: CODEX_HOME, unless that is Orca's managed copy, else ~/.codex."""
-    env = os.environ.get("CODEX_HOME")
-    if env and not _orca_managed_codex_home(env):
-        return Path(env)
-    return Path.home() / ".codex"
+    """The Codex config folder to wire: ~/.codex, or the folder named in $AI_AGENT_TOOLKIT_CODEX_HOME.
+
+    The shell's own CODEX_HOME is deliberately not used: terminals and launchers set it per session to
+    point Codex at a private copy of its config, and wiring that copy never reaches the real one."""
+    override = os.environ.get(CODEX_HOME_ENV)
+    return Path(override) if override else Path.home() / ".codex"
 
 
 def use_codex_home() -> Path:

@@ -710,7 +710,7 @@ def test_wire_memory_hub_hooks_codex_install_and_remove(monkeypatch, tmp_path):
     import json
 
     m = load()
-    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex"))
+    monkeypatch.setenv(__import__("_common").CODEX_HOME_ENV, str(tmp_path / "codex"))
     hooks_file = tmp_path / "codex" / "hooks.json"
     hooks_file.parent.mkdir()
     own = {"matcher": "", "hooks": [{"type": "command", "command": "orca-hook.cmd"}]}
@@ -911,25 +911,19 @@ def test_hook_script_path_uses_forward_slashes_on_windows(monkeypatch):
     )  # runs by itself; same slashes for bash, cmd, PowerShell
 
 
-def test_codex_home_ignores_the_copy_orca_manages(monkeypatch, tmp_path):
-    """Orca points CODEX_HOME at its own rebuilt copy: wiring there is lost, so wire ~/.codex instead."""
+def test_codex_home_is_the_native_folder_whatever_the_shell_sets(monkeypatch, tmp_path):
+    """A shell's CODEX_HOME can point at a private copy that is rebuilt later; wire ~/.codex instead."""
     load()
     import _common
 
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
-    orca = tmp_path / "AppData" / "orca" / "codex-runtime-home" / "home"
-    monkeypatch.setenv("CODEX_HOME", str(orca))
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "somewhere" / "private-copy"))
+    monkeypatch.delenv(_common.CODEX_HOME_ENV, raising=False)
     assert _common.codex_home() == tmp_path / ".codex"
 
-    monkeypatch.setenv("ORCA_CODEX_HOME", str(tmp_path / "other"))  # also by Orca's own marker
-    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "other"))
-    assert _common.codex_home() == tmp_path / ".codex"
-
-    monkeypatch.delenv("ORCA_CODEX_HOME")
-    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "mine"))  # a home the user chose is respected
+    monkeypatch.setenv(_common.CODEX_HOME_ENV, str(tmp_path / "mine"))  # an explicit choice for the toolkit
     assert _common.codex_home() == tmp_path / "mine"
-    monkeypatch.delenv("CODEX_HOME")
-    assert _common.codex_home() == tmp_path / ".codex"
+    assert _common.CODEX_HOME_ENV.endswith("_CODEX_HOME")
 
 
 def test_wire_codex_runs_the_codex_cli_against_the_native_home(monkeypatch, tmp_path):
@@ -938,7 +932,7 @@ def test_wire_codex_runs_the_codex_cli_against_the_native_home(monkeypatch, tmp_
 
     m = load()
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
-    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "orca" / "codex-runtime-home" / "home"))
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "somewhere" / "private-copy"))
     monkeypatch.setattr(m, "_memory_backend", lambda: ("basic-memory", None))
     monkeypatch.setattr(m.shutil, "which", lambda name: f"/bin/{name}")
     monkeypatch.setattr(m, "_install_skills", lambda d: None)
