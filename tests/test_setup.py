@@ -889,3 +889,19 @@ def test_hook_command_runs_a_cmd_adapter_directly_but_a_script_through_node():
     assert "node" not in cmd and cmd.endswith("memory-capture.cmd")
     assert mh._command(Path(r"C:\Program Files\hub\hook.cmd")).startswith('"')  # quoted when it has a space
     assert mh._command(Path("/hub/agents/claude-code/hooks/memory-capture.mjs")).split()[0].endswith("node")
+
+
+def test_hook_script_path_uses_forward_slashes_on_windows(monkeypatch):
+    """Claude Code runs hooks through bash: `node C:\Users\x\hook.mjs` became `C:Usersxhook.mjs` (MODULE_NOT_FOUND)."""
+    from pathlib import PureWindowsPath
+
+    load()
+    import _memory_hub as mh
+
+    monkeypatch.setattr(mh, "IS_WINDOWS", True)
+    cmd = mh._command(PureWindowsPath(r"C:\Users\Cheng\personal-memory-hub\agents\claude-code\hooks\memory-capture.mjs"))
+    assert cmd == "node C:/Users/Cheng/personal-memory-hub/agents/claude-code/hooks/memory-capture.mjs"
+    assert "\\" not in cmd
+    assert mh._command(PureWindowsPath(r"C:\Program Files\hub\hook.mjs")) == 'node "C:/Program Files/hub/hook.mjs"'
+    adapter = mh._command(PureWindowsPath(r"C:\hub\agents\codex\hooks\memory-capture.cmd"))
+    assert adapter == r"C:\hub\agents\codex\hooks\memory-capture.cmd"       # cmd.exe adapter keeps backslashes
