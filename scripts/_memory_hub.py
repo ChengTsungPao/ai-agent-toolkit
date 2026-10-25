@@ -29,7 +29,7 @@ HUB_ENV = (  # env the `memorycore` MCP entry carries, in this order
     "TDAI_STATE_DIR",
     "TDAI_TIMEOUT_MS",
 )
-HOOK_SCRIPTS = ("memory-recall.mjs", "memory-capture.mjs")
+HOOK_SCRIPTS = ("memory-recall.mjs", "memory-capture.mjs", "memory-capture.cmd")
 EVENTS = ("SessionStart", "Stop")
 NO_HUB = (Path("."), "node")  # stand-in hub for "remove": only the harness matters then
 
@@ -95,7 +95,9 @@ def _scripts(harness: str, hub: tuple[Path, str]) -> tuple[Path, Path]:
             agents / "antigravity" / "hooks" / "memory-capture.mjs",
         )
     recall = agents / "claude-code" / "hooks" / "memory-recall.mjs"
-    capture = agents / ("codex" if harness == "codex" else "claude-code") / "hooks" / "memory-capture.mjs"
+    capture = agents / ("codex" if harness == "codex" else "claude-code") / "hooks" / (
+        "memory-capture.cmd" if harness == "codex" else "memory-capture.mjs"
+    )
     return recall, capture
 
 
