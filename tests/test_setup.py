@@ -676,13 +676,13 @@ def test_memory_hub_command_quoting():
     p_no_space = Path("C:/test/path.mjs")
     cmd_no_space = _memory_hub._command(p_no_space)
     assert '"' not in cmd_no_space
-    assert cmd_no_space.endswith(str(p_no_space))
+    assert cmd_no_space.endswith(p_no_space.as_posix())  # forward slashes: bash would eat backslashes
     if _memory_hub.IS_WINDOWS:
         assert cmd_no_space.startswith("node ")
 
     p_with_space = Path("C:/test path/with space.mjs")
     cmd_with_space = _memory_hub._command(p_with_space)
-    assert f'"{p_with_space}"' in cmd_with_space
+    assert f'"{p_with_space.as_posix()}"' in cmd_with_space
 
 
 def test_wire_memory_hub_hooks_claude_code(monkeypatch, tmp_path):
@@ -889,3 +889,21 @@ def test_hook_command_runs_a_cmd_adapter_directly_but_a_script_through_node():
     assert "node" not in cmd and cmd.endswith("memory-capture.cmd")
     assert mh._command(Path(r"C:\Program Files\hub\hook.cmd")).startswith('"')  # quoted when it has a space
     assert mh._command(Path("/hub/agents/claude-code/hooks/memory-capture.mjs")).split()[0].endswith("node")
+
+
+def test_hook_script_path_uses_forward_slashes_on_windows(monkeypatch):
+    """Claude Code runs hooks through bash, which eats unquoted backslashes: MODULE_NOT_FOUND on every Stop."""
+    from pathlib import PureWindowsPath
+
+    load()
+    import _memory_hub as mh
+
+    monkeypatch.setattr(mh, "IS_WINDOWS", True)
+    cmd = mh._command(
+        PureWindowsPath(r"C:\Users\Cheng\personal-memory-hub\agents\claude-code\hooks\memory-capture.mjs")
+    )
+    assert cmd == "node C:/Users/Cheng/personal-memory-hub/agents/claude-code/hooks/memory-capture.mjs"
+    assert "\\" not in cmd
+    assert mh._command(PureWindowsPath(r"C:\Program Files\hub\hook.mjs")) == 'node "C:/Program Files/hub/hook.mjs"'
+    adapter = mh._command(PureWindowsPath(r"C:\hub\agents\codex\hooks\memory-capture.cmd"))
+    assert adapter == r"C:\hub\agents\codex\hooks\memory-capture.cmd"  # cmd.exe adapter keeps backslashes
