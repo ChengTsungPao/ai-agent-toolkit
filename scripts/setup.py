@@ -525,9 +525,24 @@ def _remove_memory_mcp(harness: str, name: str) -> None:
     subprocess.run(command, shell=True, capture_output=True, **WIN_FLAGS)
 
 
-def _memorycore_entry(hub: tuple[Path, str]) -> dict:
+def _fallback_memory_env() -> dict:
+    import json
+
+    env = {}
+    claude_json = Path.home() / ".claude.json"
+    if claude_json.exists():
+        try:
+            data = json.loads(claude_json.read_text(encoding="utf-8-sig"))
+            env.update(data.get("mcpServers", {}).get("memorycore", {}).get("env", {}))
+        except Exception:
+            pass
+    return env
+
+
+def _memorycore_entry(hub: tuple[Path, str], fallback_env: dict | None = None) -> dict:
     server, node = hub
     env = {}
+    fallback = {**_fallback_memory_env(), **(fallback_env or {})}
     for key in (
         "TDAI_ENDPOINT",
         "TDAI_KNOWLEDGE_ENDPOINT",
@@ -538,8 +553,9 @@ def _memorycore_entry(hub: tuple[Path, str]) -> dict:
         "TDAI_STATE_DIR",
         "TDAI_TIMEOUT_MS",
     ):
-        if os.environ.get(key):
-            env[key] = os.environ[key]
+        val = os.environ.get(key) or fallback.get(key)
+        if val:
+            env[key] = str(val)
     entry = {"command": node, "args": [str(server)]}
     if env:
         entry["env"] = env
@@ -586,13 +602,19 @@ def _write_json_file(path: Path, value: dict) -> None:
 def _remove_memory_hub_hooks(path: Path, harness: str) -> None:
     cfg = _read_json_file(path)
     if harness == "antigravity":
-        hooks = cfg.get("hooks", {})
-        hooks.pop("memory-hub", None)
+        cfg.pop("memory-hub", None)
+        if "hooks" in cfg and isinstance(cfg["hooks"], dict):
+            cfg["hooks"].pop("memory-hub", None)
+            if not cfg["hooks"]:
+                cfg.pop("hooks", None)
     else:
         hooks = cfg.get("hooks", {})
         for event in ("SessionStart", "Stop"):
             entries = hooks.get(event, [])
-            hooks[event] = [entry for entry in entries if "memory-recall.mjs" not in str(entry) and "memory-capture.mjs" not in str(entry)]
+            hooks[event] = [
+                entry for entry in entries
+                if "memory-recall.mjs" not in str(entry) and "memory-capture.mjs" not in str(entry)
+            ]
     _write_json_file(path, cfg)
 
 
@@ -613,20 +635,35 @@ def _wire_memory_hub_hooks(harness: str, hub: tuple[Path, str], action: str = "i
 
     recall, claude_capture, codex_capture, antigravity_recall, antigravity_capture = _memory_hub_hook_paths(hub)
     cfg = _read_json_file(path)
-    hooks = cfg.setdefault("hooks", {})
-    for event in ("SessionStart", "Stop"):
-        entries = hooks.setdefault(event, [])
-        hooks[event] = [entry for entry in entries if "memory-recall.mjs" not in str(entry) and "memory-capture.mjs" not in str(entry)]
 
     if harness == "antigravity":
-        hooks["memory-hub"] = {
+        cfg["memory-hub"] = {
             "SessionStart": [{"type": "command", "command": _hook_command(antigravity_recall), "timeout": 10}],
             "Stop": [{"type": "command", "command": _hook_command(antigravity_capture), "timeout": 45}],
         }
-    else:
-        capture = codex_capture if harness == "codex" else claude_capture
-        hooks["SessionStart"].append({"matcher": "", "hooks": [{"type": "command", "command": _hook_command(recall), "timeout": 10}]})
-        hooks["Stop"].append({"matcher": "", "hooks": [{"type": "command", "command": _hook_command(capture), "timeout": 45}]})
+        if "hooks" in cfg and isinstance(cfg["hooks"], dict):
+            cfg["hooks"].pop("memory-hub", None)
+            if not cfg["hooks"]:
+                cfg.pop("hooks", None)
+        _write_json_file(path, cfg)
+        print(green(f"  Memory Hub hooks installed: {path}"))
+        return 0
+
+    hooks = cfg.setdefault("hooks", {})
+    for event in ("SessionStart", "Stop"):
+        entries = hooks.setdefault(event, [])
+        hooks[event] = [
+            entry for entry in entries
+            if "memory-recall.mjs" not in str(entry) and "memory-capture.mjs" not in str(entry)
+        ]
+
+    capture = codex_capture if harness == "codex" else claude_capture
+    hooks["SessionStart"].append(
+        {"matcher": "", "hooks": [{"type": "command", "command": _hook_command(recall), "timeout": 10}]}
+    )
+    hooks["Stop"].append(
+        {"matcher": "", "hooks": [{"type": "command", "command": _hook_command(capture), "timeout": 45}]}
+    )
     _write_json_file(path, cfg)
     print(green(f"  Memory Hub hooks installed: {path}"))
     return 0
@@ -965,7 +1002,8 @@ def wire_antigravity(tools) -> int:
         _warn_missing_env(t)
     if backend == "memorycore":
         servers.pop("basic-memory", None)
-        servers["memorycore"] = _memorycore_entry(hub)
+        existing_env = (servers.get("memorycore") or {}).get("env")
+        servers["memorycore"] = _memorycore_entry(hub, existing_env)
         _wire_memory_hub_hooks("antigravity", hub)
     else:
         servers.pop("memorycore", None)
@@ -1010,10 +1048,11 @@ def _ensure_antigravity_daemon_running() -> None:
         if IS_WINDOWS:
             # On Windows, spawn via WMI to detach from current session/console job
             ps_script = (
-                "$cfg = New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly "
-                "-Property @{ShowWindow = 0; CreateFlags = 0x210}; "
-                "Invoke-CimMethod -ClassName Win32_Process -MethodName Create "
-                f"-Arguments @{{CommandLine = '\"{agy_exe}\" remote-control serve'; ProcessStartupInformation = $cfg}}"
+                "$s = [wmiclass]'Win32_ProcessStartup'; "
+                "$cfg = $s.CreateInstance(); "
+                "$cfg.ShowWindow = 0; $cfg.CreateFlags = 0x210; "
+                "$p = [wmiclass]'Win32_Process'; "
+                f"$null = $p.Create('\"{agy_exe}\" remote-control serve', $null, $cfg)"
             )
             subprocess.run(
                 ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script],

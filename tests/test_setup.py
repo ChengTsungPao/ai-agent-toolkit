@@ -593,8 +593,8 @@ def test_ensure_antigravity_daemon_running_platform_specific(monkeypatch):
         assert len(ran_run) == 1
         call_args = ran_run[0][0]
         assert call_args[0] == "powershell"
-        assert "Invoke-CimMethod" in call_args[4]
         assert "Win32_Process" in call_args[4]
+        assert "Win32_ProcessStartup" in call_args[4]
         assert "remote-control serve" in call_args[4]
         assert ran_popen == []
     else:
@@ -619,3 +619,51 @@ def test_ensure_antigravity_daemon_running_missing_binary(monkeypatch):
 
     m._ensure_antigravity_daemon_running()
     assert ran == []
+
+
+def test_wire_memory_hub_hooks_antigravity(monkeypatch, tmp_path):
+    import json
+    from pathlib import Path
+
+    m = load()
+    monkeypatch.setenv("AGY_CONFIG_HOME", str(tmp_path))
+    hooks_file = tmp_path / "hooks.json"
+    hooks_file.write_text(json.dumps({"orca-status": {"PreInvocation": []}}))
+
+    hub = (Path("/mock/personal-memory-hub/agents/claude-code/mcp/server.mjs"), "node")
+    assert m._wire_memory_hub_hooks("antigravity", hub) == 0
+
+    cfg = json.loads(hooks_file.read_text())
+    assert "orca-status" in cfg
+    assert "memory-hub" in cfg
+    assert "SessionStart" in cfg["memory-hub"]
+    assert "Stop" in cfg["memory-hub"]
+    assert "hooks" not in cfg
+
+    # Test remove
+    assert m._wire_memory_hub_hooks("antigravity", hub, action="remove") == 0
+    cfg_after = json.loads(hooks_file.read_text())
+    assert "orca-status" in cfg_after
+    assert "memory-hub" not in cfg_after
+
+
+def test_wire_memory_hub_hooks_claude_code(monkeypatch, tmp_path):
+    import json
+    from pathlib import Path
+
+    m = load()
+    fake_claude_dir = tmp_path / ".claude"
+    fake_claude_dir.mkdir(parents=True)
+    settings_file = fake_claude_dir / "settings.json"
+    settings_file.write_text(json.dumps({"hooks": {"SessionStart": [{"type": "user"}]}}))
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+
+    hub = (Path("/mock/personal-memory-hub/agents/claude-code/mcp/server.mjs"), "node")
+    assert m._wire_memory_hub_hooks("claude-code", hub) == 0
+
+    cfg = json.loads(settings_file.read_text())
+    session_starts = cfg["hooks"]["SessionStart"]
+    assert len(session_starts) == 2
+    assert session_starts[0] == {"type": "user"}
+    assert "memory-recall.mjs" in session_starts[1]["hooks"][0]["command"]
+
