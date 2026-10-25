@@ -33,7 +33,8 @@ def main() -> None:
         shell = shutil.which("sh") or shutil.which("bash")
         if shell:
             try:
-                subprocess.run([shell, "-c", prev], input=payload, timeout=10)
+                flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+                subprocess.run([shell, "-c", prev], input=payload, timeout=10, creationflags=flags)
             except (OSError, subprocess.SubprocessError):
                 pass
 

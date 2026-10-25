@@ -69,6 +69,8 @@ from _common import (  # noqa: E402  (must follow the sys.path line above)
 )
 from _statusline import cmd_statusline  # noqa: E402  (kept here so setup.py stays the only orchestrator)
 
+WIN_FLAGS = {"creationflags": subprocess.CREATE_NO_WINDOW} if IS_WINDOWS else {}
+
 
 # ── manifest ────────────────────────────────────────────────────────────────
 SCHEMA_VERSION = 2
@@ -269,7 +271,7 @@ def is_installed(tool: dict) -> bool:
     if shutil.which(exe) is None:
         return False
     try:
-        return subprocess.run(verify, shell=True, capture_output=True, timeout=30).returncode == 0
+        return subprocess.run(verify, shell=True, capture_output=True, timeout=30, **WIN_FLAGS).returncode == 0
     except (subprocess.TimeoutExpired, OSError):
         return False
 
@@ -279,7 +281,7 @@ def version_of(tool: dict) -> str:
     if not verify:
         return ""
     try:
-        r = subprocess.run(verify, shell=True, capture_output=True, text=True, timeout=30)
+        r = subprocess.run(verify, shell=True, capture_output=True, text=True, timeout=30, **WIN_FLAGS)
         if r.returncode != 0:
             return ""
         line = (r.stdout or r.stderr).strip().splitlines()[0][:60]
@@ -713,11 +715,12 @@ def wire_claude_code(tools) -> int:
     _install_skills(Path.home() / ".claude" / "skills")
     for t in _mcp_tools(tools):
         command, arglist = mcp_spec(t)
+        command, arglist = _resolve_npm_shim(command, arglist)
         command = shutil.which(command) or command  # absolute path — don't rely on the harness's PATH
         args = " ".join(arglist)
         # -e/--env is variadic, so it must come *after* the server name.
         env, env_masked = _mcp_env(t, "-e")
-        subprocess.run(f"claude mcp remove {t['id']} -s user", shell=True, capture_output=True)
+        subprocess.run(f"claude mcp remove {t['id']} -s user", shell=True, capture_output=True, **WIN_FLAGS)
         base = f"claude mcp add --scope user {t['id']} {{}} -- {command} {args}"
         run(" ".join(base.format(env).split()), display=" ".join(base.format(env_masked).split()))
         _warn_missing_env(t)
@@ -748,6 +751,7 @@ def wire_codex(tools) -> int:
     _install_skills(codex_home / "skills")
     for t in _mcp_tools(tools):
         command, arglist = mcp_spec(t)
+        command, arglist = _resolve_npm_shim(command, arglist)
         args = " ".join(arglist)
         env, env_masked = _mcp_env(t, "--env")
         cmd = shutil.which(command) or command
@@ -830,13 +834,15 @@ def _ensure_antigravity_daemon_running() -> None:
         if IS_WINDOWS:
             # On Windows, spawn via WMI to detach from current session/console job
             ps_script = (
+                f"$cfg = New-CimInstance -ClassName Win32_ProcessStartup -ClientOnly -Property @{{ShowWindow = 0; CreateFlags = 0x210}}; "
                 f"Invoke-CimMethod -ClassName Win32_Process -MethodName Create "
-                f"-Arguments @{{CommandLine = '\"{agy_exe}\" remote-control serve'}}"
+                f"-Arguments @{{CommandLine = '\"{agy_exe}\" remote-control serve'; ProcessStartupInformation = $cfg}}"
             )
             subprocess.run(
                 ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script],
                 capture_output=True,
                 text=True,
+                **WIN_FLAGS,
             )
         else:
             # On macOS / Linux, start_new_session=True (setsid) fully detaches process from controlling terminal
@@ -913,7 +919,7 @@ def _wire_antigravity_remote_control(home: Path) -> None:
         return
 
     cmd = f'agy remote-control start --name "{instance_name}"'
-    r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    r = subprocess.run(cmd, shell=True, capture_output=True, text=True, **WIN_FLAGS)
     _ensure_antigravity_daemon_running()
     if r.returncode == 0:
         print(green(f"  remote-control → daemon started as '{instance_name}'"))
@@ -1199,7 +1205,7 @@ def cmd_unwire(args) -> int:
     elif h in ("claude-code", "codex"):
         remove = "claude mcp remove {} -s user" if h == "claude-code" else "codex mcp remove {}"
         for i in mcp_ids:
-            subprocess.run(remove.format(i), shell=True, capture_output=True)
+            subprocess.run(remove.format(i), shell=True, capture_output=True, **WIN_FLAGS)
             print(dim(f"  mcp removed: {i}"))
         skills_dir = (Path.home() / ".claude" if h == "claude-code" else _codex_home()) / "skills"
         names = [s.name for s in bundled_skills()]

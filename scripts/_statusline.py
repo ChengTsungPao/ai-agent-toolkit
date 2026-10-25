@@ -53,7 +53,8 @@ def _statusline_python() -> str:
         if not shutil.which(c):
             continue
         try:
-            r = subprocess.run([c, "--version"], capture_output=True, text=True, timeout=5)
+            flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+            r = subprocess.run([c, "--version"], capture_output=True, text=True, timeout=5, creationflags=flags)
         except (OSError, subprocess.SubprocessError):
             continue
         if r.returncode == 0 and (r.stdout + r.stderr).startswith("Python "):
