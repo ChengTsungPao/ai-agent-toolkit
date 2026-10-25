@@ -51,4 +51,6 @@ dim = lambda s: _c("2", s)
 
 def run(cmd: str, display: str | None = None, **kw) -> int:
     print(dim(f"  $ {display if display is not None else cmd}"))
+    if sys.platform == "win32" and "creationflags" not in kw:
+        kw["creationflags"] = subprocess.CREATE_NO_WINDOW
     return subprocess.run(cmd, shell=True, **kw).returncode

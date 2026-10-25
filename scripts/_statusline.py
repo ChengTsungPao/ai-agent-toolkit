@@ -13,7 +13,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from _common import REPO, REPO_NAME, dim, green
+from _common import IS_WINDOWS, REPO, REPO_NAME, dim, green
 
 STATUSLINE_TAG = f"{REPO_NAME}-statusline"
 STATUSLINE_DIR = Path.home() / ".claude" / STATUSLINE_TAG
@@ -53,7 +53,8 @@ def _statusline_python() -> str:
         if not shutil.which(c):
             continue
         try:
-            r = subprocess.run([c, "--version"], capture_output=True, text=True, timeout=5)
+            flags = subprocess.CREATE_NO_WINDOW if IS_WINDOWS else 0
+            r = subprocess.run([c, "--version"], capture_output=True, text=True, timeout=5, creationflags=flags)
         except (OSError, subprocess.SubprocessError):
             continue
         if r.returncode == 0 and (r.stdout + r.stderr).startswith("Python "):
