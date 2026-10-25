@@ -294,6 +294,19 @@ def test_unwire_codex_uses_codex_remove_and_spares_claude_md(monkeypatch):
     assert stripped == ["AGENTS.md"]  # codex has no CLAUDE.md
 
 
+def test_wire_codex_installs_basic_memory_hooks(monkeypatch):
+    m = load()
+    monkeypatch.setattr(m.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(m, "_install_skills", lambda d: None)
+    monkeypatch.setattr(m, "_install_graphify_skill", lambda h: None)
+    monkeypatch.setattr(m, "_warn_missing_env", lambda t: None)
+    commands = []
+    monkeypatch.setattr(m, "run", lambda cmd, **kw: commands.append(cmd) or 0)
+
+    assert m.wire_codex([{"id": "basic-memory", "mcp": {"command": "basic-memory"}}]) == 0
+    assert commands[-1].endswith("hook install --harness codex")
+
+
 def test_unwire_cursor_touches_nothing(monkeypatch):
     m = load()
     ran, stripped, removed = _unwire_recorders(monkeypatch, m)

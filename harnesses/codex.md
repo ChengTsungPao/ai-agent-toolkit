@@ -9,11 +9,17 @@
 - `graphify install --platform codex` (if graphify is installed and not skipped)
 - guidelines: full text → `$CODEX_HOME/AGENTS.md` (marker-delimited block)
 
+`wire codex` also runs `basic-memory hook install --harness codex` when
+Basic Memory is managed and installed. This adds SessionStart and PreCompact
+lifecycle hooks without replacing user-authored hooks.
+
 ## Manual / verification
 
 ```bash
 codex mcp list                  # basic-memory → enabled
 codex mcp get basic-memory
+basic-memory hook status
+Get-Content "$CODEX_HOME/hooks.json"
 ```
 
 Config file: `$CODEX_HOME/config.toml`, block:

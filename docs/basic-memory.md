@@ -78,9 +78,11 @@ basic-memory tool recent-activity
 | env `BASIC_MEMORY_NO_PROMOS` | `1` | kill telemetry + cloud prompts |
 | `cloud_promo_opt_out` | `true` | same, persisted in config.json |
 
-## Optional next steps (not enabled)
+## Lifecycle hooks
 
-- `basic-memory hook install` — harness lifecycle hooks (session-start context
-  brief, pre-compact capture). Adds automatic capture; skipped to keep writes
-  deliberate and reviewable.
+- `setup.py wire claude-code` / `setup.py wire codex` automatically run
+  `basic-memory hook install` for the corresponding harness. This installs
+  idempotent session-start context and pre-compact lifecycle capture hooks;
+  user-authored hooks are preserved. Use `basic-memory hook remove --harness
+  <claude|codex>` to remove Basic Memory's entries only.
 - Reranker: `reranker_enabled=true` for higher-quality semantic search.
