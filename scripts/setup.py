@@ -546,6 +546,92 @@ def _memorycore_entry(hub: tuple[Path, str]) -> dict:
     return entry
 
 
+def _memory_hub_hook_paths(hub: tuple[Path, str]) -> tuple[Path, Path, Path, Path, Path]:
+    """Return lifecycle hook paths for Claude, Codex, and Antigravity."""
+    server, _node = hub
+    root = server.parents[3]
+    return (
+        root / "agents" / "claude-code" / "hooks" / "memory-recall.mjs",
+        root / "agents" / "claude-code" / "hooks" / "memory-capture.mjs",
+        root / "agents" / "codex" / "hooks" / "memory-capture.mjs",
+        root / "agents" / "antigravity" / "hooks" / "memory-recall.mjs",
+        root / "agents" / "antigravity" / "hooks" / "memory-capture.mjs",
+    )
+
+
+def _hook_command(path: Path) -> str:
+    if IS_WINDOWS:
+        return f'node "{path}"'
+    return f'node "{path}"'
+
+
+def _read_json_file(path: Path) -> dict:
+    import json
+
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8-sig").strip() or "{}")
+    except (OSError, ValueError):
+        return {}
+
+
+def _write_json_file(path: Path, value: dict) -> None:
+    import json
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+
+
+def _remove_memory_hub_hooks(path: Path, harness: str) -> None:
+    cfg = _read_json_file(path)
+    if harness == "antigravity":
+        hooks = cfg.get("hooks", {})
+        hooks.pop("memory-hub", None)
+    else:
+        hooks = cfg.get("hooks", {})
+        for event in ("SessionStart", "Stop"):
+            entries = hooks.get(event, [])
+            hooks[event] = [entry for entry in entries if "memory-recall.mjs" not in str(entry) and "memory-capture.mjs" not in str(entry)]
+    _write_json_file(path, cfg)
+
+
+def _wire_memory_hub_hooks(harness: str, hub: tuple[Path, str], action: str = "install") -> int:
+    """Merge Memory Hub lifecycle hooks without replacing user hooks."""
+    if harness == "claude-code":
+        path = Path.home() / ".claude" / "settings.json"
+    elif harness == "codex":
+        path = _codex_home() / "hooks.json"
+    elif harness == "antigravity":
+        path = _agy_home() / "hooks.json"
+    else:
+        return 0
+    if action == "remove":
+        _remove_memory_hub_hooks(path, harness)
+        print(dim(f"  Memory Hub hooks removed: {path}"))
+        return 0
+
+    recall, claude_capture, codex_capture, antigravity_recall, antigravity_capture = _memory_hub_hook_paths(hub)
+    cfg = _read_json_file(path)
+    hooks = cfg.setdefault("hooks", {})
+    for event in ("SessionStart", "Stop"):
+        entries = hooks.setdefault(event, [])
+        hooks[event] = [entry for entry in entries if "memory-recall.mjs" not in str(entry) and "memory-capture.mjs" not in str(entry)]
+
+    if harness == "antigravity":
+        hooks["memory-hub"] = {
+            "SessionStart": [{"type": "command", "command": _hook_command(antigravity_recall), "timeout": 10}],
+            "Stop": [{"type": "command", "command": _hook_command(antigravity_capture), "timeout": 45}],
+        }
+    else:
+        capture = codex_capture if harness == "codex" else claude_capture
+        hooks["SessionStart"].append({"matcher": "", "hooks": [{"type": "command", "command": _hook_command(recall), "timeout": 10}]})
+        hooks["Stop"].append({"matcher": "", "hooks": [{"type": "command", "command": _hook_command(capture), "timeout": 45}]})
+    _write_json_file(path, cfg)
+    print(green(f"  Memory Hub hooks installed: {path}"))
+    return 0
+
+
 def _wire_memorycore(harness: str, hub: tuple[Path, str]) -> int:
     server, node = hub
     _remove_memory_mcp(harness, "basic-memory")
@@ -792,7 +878,9 @@ def wire_claude_code(tools) -> int:
         _warn_missing_env(t)
     _install_graphify_skill("claude-code")
     if backend == "memorycore":
+        _wire_memory_hub_hooks("claude-code", hub)
         return _wire_memorycore("claude-code", hub)
+    _wire_memory_hub_hooks("claude-code", (Path("."), "node"), "remove")
     _remove_memory_mcp("claude-code", "memorycore")
     return _wire_basic_memory_hooks(tools, "claude")
 
@@ -834,7 +922,9 @@ def wire_codex(tools) -> int:
         _warn_missing_env(t)
     _install_graphify_skill("codex")
     if backend == "memorycore":
+        _wire_memory_hub_hooks("codex", hub)
         return _wire_memorycore("codex", hub)
+    _wire_memory_hub_hooks("codex", (Path("."), "node"), "remove")
     _remove_memory_mcp("codex", "memorycore")
     return _wire_basic_memory_hooks(tools, "codex")
 
@@ -876,8 +966,10 @@ def wire_antigravity(tools) -> int:
     if backend == "memorycore":
         servers.pop("basic-memory", None)
         servers["memorycore"] = _memorycore_entry(hub)
+        _wire_memory_hub_hooks("antigravity", hub)
     else:
         servers.pop("memorycore", None)
+        _wire_memory_hub_hooks("antigravity", (Path("."), "node"), "remove")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
     _install_graphify_skill("antigravity")
@@ -1308,6 +1400,7 @@ def cmd_unwire(args) -> int:
             "claude" if h == "claude-code" else "codex",
             "remove",
         )
+        _wire_memory_hub_hooks(h, (Path("."), "node"), "remove")
         _remove_memory_mcp(h, "memorycore")
     else:
         print(dim(f"  {h}: manual — remove the MCP entries, skill dirs, and guidelines block yourself"))
