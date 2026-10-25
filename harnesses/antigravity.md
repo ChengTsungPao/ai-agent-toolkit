@@ -16,6 +16,10 @@ Everything lands in Antigravity's global config root, `~/.gemini/config/`
   Control sessions at https://antigravity.google.com/
 - plugins: none — `superpowers` has no Antigravity install path
 
+Memory is selected automatically: `wire antigravity` prefers the local
+Personal Memory Hub (`memorycore`) when MemoryCore is healthy, and falls back
+to Basic Memory when the hub is absent or unreachable.
+
 ## Verify
 
 ```bash
