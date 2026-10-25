@@ -668,6 +668,21 @@ def test_wire_memory_hub_hooks_antigravity(monkeypatch, tmp_path):
     assert "memory-hub" not in cfg_after
 
 
+def test_memory_hub_command_quoting():
+    from pathlib import Path
+
+    import _memory_hub
+
+    p_no_space = Path("C:/test/path.mjs")
+    cmd_no_space = _memory_hub._command(p_no_space)
+    assert '"' not in cmd_no_space
+    assert cmd_no_space.endswith(str(p_no_space))
+
+    p_with_space = Path("C:/test path/with space.mjs")
+    cmd_with_space = _memory_hub._command(p_with_space)
+    assert f'"{p_with_space}"' in cmd_with_space
+
+
 def test_wire_memory_hub_hooks_claude_code(monkeypatch, tmp_path):
     import json
     from pathlib import Path
@@ -707,7 +722,7 @@ def test_wire_memory_hub_hooks_codex_install_and_remove(monkeypatch, tmp_path):
     assert "codex" in hooks["Stop"][0]["hooks"][0]["command"]  # capture is Codex's own
     capture_command = hooks["Stop"][0]["hooks"][0]["command"]
     capture_script = "memory-capture.cmd" if m.os.name == "nt" else "memory-capture.mjs"
-    assert capture_command.endswith(f'{capture_script}"')
+    assert capture_command.rstrip('"').endswith(capture_script)
     assert (tmp_path / "codex" / "hooks.json.bak").exists()
 
     assert m._wire_memory_hub_hooks("codex", hub, action="remove") == 0
