@@ -768,3 +768,25 @@ def test_wire_codex_with_the_hub_removes_basic_memory_hooks(monkeypatch, tmp_pat
 
     assert m.wire_codex([{"id": "basic-memory", "mcp": {"command": "basic-memory"}}]) == 0
     assert any(c.endswith("hook remove --harness codex") for c in commands)
+
+
+def test_mcp_command_with_a_space_in_its_path_is_quoted(monkeypatch):
+    """`claude mcp add ... -- C:\\Program Files\nodejs\node.EXE` was registered as the command `C:\\Program`."""
+    m = load()
+    monkeypatch.setattr(m, "_memory_backend", lambda: ("basic-memory", None))
+    monkeypatch.setattr(m.shutil, "which", lambda name: r"C:\Program Files\nodejs\node.EXE")
+    monkeypatch.setattr(m, "_install_skills", lambda d: None)
+    monkeypatch.setattr(m, "_install_graphify_skill", lambda h: None)
+    monkeypatch.setattr(m, "_warn_missing_env", lambda t: None)
+    monkeypatch.setattr(m, "_wire_basic_memory_hooks", lambda *a, **k: 0)
+    monkeypatch.setattr(m.subprocess, "run", lambda *a, **k: None)
+    commands = []
+    monkeypatch.setattr(m, "run", lambda cmd, **kw: commands.append(cmd) or 0)
+    tool = {"id": "demo", "mcp": {"command": "node", "args": ["server.js", r"C:\My Folder\x.js"]}}
+
+    m.wire_claude_code([tool])
+    m.wire_codex([tool])
+    add = [c for c in commands if " mcp add " in c]
+    assert len(add) == 2
+    for c in add:
+        assert r'-- "C:\Program Files\nodejs\node.EXE" server.js "C:\My Folder\x.js"' in c

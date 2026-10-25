@@ -478,6 +478,12 @@ def _mcp_tools(tools) -> list[dict]:
     return [t for t in tools if t.get("mcp") and t["id"] not in skip]
 
 
+def _shell_arg(x: str) -> str:
+    """Quote an argument that contains a space (e.g. a node.EXE under "Program Files"); unquoted, the
+    shell splits it and the MCP server is registered with the command `C:\\Program`."""
+    return f'"{x}"' if " " in x and not x.startswith('"') else x
+
+
 def mcp_spec(t: dict) -> tuple[str, list[str]]:
     """(command, args) for this tool's MCP server, with a per-OS override applied."""
     m = {**t["mcp"], **t["mcp"].get(OS, {})}
@@ -742,7 +748,7 @@ def wire_claude_code(tools) -> int:
         command, arglist = mcp_spec(t)
         command, arglist = _resolve_npm_shim(command, arglist)
         command = shutil.which(command) or command  # absolute path — don't rely on the harness's PATH
-        args = " ".join(arglist)
+        command, args = _shell_arg(command), " ".join(_shell_arg(a) for a in arglist)
         # -e/--env is variadic, so it must come *after* the server name.
         env, env_masked = _mcp_env(t, "-e")
         subprocess.run(f"claude mcp remove {t['id']} -s user", shell=True, capture_output=True, **WIN_FLAGS)
@@ -786,9 +792,9 @@ def wire_codex(tools) -> int:
             continue
         command, arglist = mcp_spec(t)
         command, arglist = _resolve_npm_shim(command, arglist)
-        args = " ".join(arglist)
+        args = " ".join(_shell_arg(a) for a in arglist)
         env, env_masked = _mcp_env(t, "--env")
-        cmd = shutil.which(command) or command
+        cmd = _shell_arg(shutil.which(command) or command)
         # `codex mcp add [--env K=V] <name> -- <cmd> <args>` — overwrites cleanly.
         base = f"codex mcp add {{}} {t['id']} -- {cmd} {args}"
         if run(" ".join(base.format(env).split()), display=" ".join(base.format(env_masked).split())) != 0:
