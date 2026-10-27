@@ -704,6 +704,33 @@ def test_wire_memory_hub_hooks_claude_code(monkeypatch, tmp_path):
     assert len(session_starts) == 2
     assert session_starts[0] == {"type": "user"}
     assert "memory-recall.mjs" in session_starts[1]["hooks"][0]["command"]
+    # An older hub has no command hook: none is registered.
+    assert "UserPromptSubmit" not in cfg["hooks"]
+
+
+def test_wire_memory_hub_command_hook_claude_code(monkeypatch, tmp_path):
+    import json
+    from pathlib import Path
+
+    m = load()
+    (tmp_path / ".claude").mkdir()
+    settings_file = tmp_path / ".claude" / "settings.json"
+    own = {"matcher": "", "hooks": [{"type": "command", "command": "my-prompt-hook"}]}
+    settings_file.write_text(json.dumps({"hooks": {"UserPromptSubmit": [own]}}))
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    hub = fake_hub(tmp_path / "hub")
+    (tmp_path / "hub" / "agents" / "claude-code" / "hooks" / "memory-command.mjs").write_text("")
+
+    assert m._wire_memory_hub_hooks("claude-code", hub) == 0
+    assert m._wire_memory_hub_hooks("claude-code", hub) == 0  # re-wiring does not add a second one
+    prompts = json.loads(settings_file.read_text())["hooks"]["UserPromptSubmit"]
+    assert prompts[0] == own
+    assert len(prompts) == 2
+    assert "memory-command.mjs" in prompts[1]["hooks"][0]["command"]
+    assert prompts[1]["hooks"][0]["timeout"] == 20
+
+    assert m._wire_memory_hub_hooks("claude-code", hub, action="remove") == 0
+    assert json.loads(settings_file.read_text())["hooks"] == {"UserPromptSubmit": [own]}
 
 
 def test_wire_memory_hub_hooks_codex_install_and_remove(monkeypatch, tmp_path):
@@ -944,3 +971,21 @@ def test_wire_codex_runs_the_codex_cli_against_the_native_home(monkeypatch, tmp_
     monkeypatch.setattr(m, "run", lambda cmd, **kw: seen.append(os.environ["CODEX_HOME"]) or 0)
     m.wire_codex([{"id": "demo", "mcp": {"command": "demo", "args": []}}])
     assert seen and all(v == str(tmp_path / ".codex") for v in seen)
+
+
+def test_wire_memory_hub_command_hook_codex_not_antigravity(monkeypatch, tmp_path):
+    import json
+
+    m = load()
+    monkeypatch.setenv(__import__("_common").CODEX_HOME_ENV, str(tmp_path / "codex"))
+    monkeypatch.setenv("AGY_CONFIG_HOME", str(tmp_path / "agy"))
+    hub = fake_hub(tmp_path / "hub")
+    (tmp_path / "hub" / "agents" / "claude-code" / "hooks" / "memory-command.mjs").write_text("")
+
+    assert m._wire_memory_hub_hooks("codex", hub) == 0
+    prompts = json.loads((tmp_path / "codex" / "hooks.json").read_text())["hooks"]["UserPromptSubmit"]
+    assert "claude-code/hooks/memory-command.mjs" in prompts[0]["hooks"][0]["command"]
+
+    assert m._wire_memory_hub_hooks("antigravity", hub) == 0
+    agy = json.loads((tmp_path / "agy" / "hooks.json").read_text())["memory-hub"]
+    assert set(agy) == {"SessionStart", "Stop"}
