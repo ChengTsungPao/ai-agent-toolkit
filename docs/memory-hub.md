@@ -36,14 +36,18 @@ Re-run `wire` after starting or stopping the hub to switch. `unwire <harness>` r
 
 | Harness | File the toolkit edits | Events | Scripts (in the hub repo) |
 |---|---|---|---|
-| Claude Code | `~/.claude/settings.json` (`hooks`) | `SessionStart`, `Stop` | `agents/claude-code/hooks/memory-recall.mjs`, `memory-capture.mjs` |
-| Codex | `$CODEX_HOME/hooks.json` (`hooks`) | `SessionStart`, `Stop` | `agents/claude-code/hooks/memory-recall.mjs`, `agents/codex/hooks/memory-capture.mjs` |
+| Claude Code | `~/.claude/settings.json` (`hooks`) | `SessionStart`, `Stop`, `UserPromptSubmit` | `agents/claude-code/hooks/memory-recall.mjs`, `memory-capture.mjs`, `memory-command.mjs` |
+| Codex | `$CODEX_HOME/hooks.json` (`hooks`) | `SessionStart`, `Stop`, `UserPromptSubmit` | `agents/claude-code/hooks/memory-recall.mjs`, `agents/codex/hooks/memory-capture.mjs`, `agents/claude-code/hooks/memory-command.mjs` |
 | Antigravity | `$AGY_CONFIG_HOME/hooks.json` (default `~/.gemini/config/hooks.json`), top-level `memory-hub` key | `SessionStart`, `Stop` | `agents/antigravity/hooks/memory-recall.mjs`, `memory-capture.mjs` |
 
-- Existing hooks are kept. Only entries whose command mentions `memory-recall.mjs` or `memory-capture.mjs`
-  are replaced or removed.
+- Existing hooks are kept. Only entries whose command mentions `memory-recall.mjs`, `memory-capture.mjs`
+  or `memory-command.mjs` are replaced or removed.
+- `UserPromptSubmit` runs the `mem: repo` commands (show, add, remove the repos a session's memory belongs
+  to), for Claude Code and Codex, which share the hook contract. Antigravity has no hook on a submitted
+  prompt, so it gets the other two. It is registered only when the hub has `memory-command.mjs`; an
+  older hub gets the other two.
 - Each hook command is `node "<hub>/agents/.../<script>.mjs"`, so it follows `PERSONAL_MEMORY_HUB_DIR`.
-- `SessionStart` has a 10 s timeout and `Stop` 45 s. Hooks are meant to fail open: a hub that is down
+- `SessionStart` has a 10 s timeout, `Stop` 45 s and `UserPromptSubmit` 20 s. Hooks are meant to fail open: a hub that is down
   must not block a turn.
 - When wiring, the toolkit takes the `TDAI_*` settings from the environment, falling back to the existing
   `memorycore` entry in `~/.claude.json`, so re-wiring one harness does not lose them in another.

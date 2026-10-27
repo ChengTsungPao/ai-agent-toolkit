@@ -29,8 +29,8 @@ HUB_ENV = (  # env the `memorycore` MCP entry carries, in this order
     "TDAI_STATE_DIR",
     "TDAI_TIMEOUT_MS",
 )
-HOOK_SCRIPTS = ("memory-recall.mjs", "memory-capture.mjs", "memory-capture.cmd")
-EVENTS = ("SessionStart", "Stop")
+HOOK_SCRIPTS = ("memory-recall.mjs", "memory-capture.mjs", "memory-capture.cmd", "memory-command.mjs")
+EVENTS = ("SessionStart", "Stop", "UserPromptSubmit")
 NO_HUB = (Path("."), "node")  # stand-in hub for "remove": only the harness matters then
 
 
@@ -98,6 +98,15 @@ def _scripts(harness: str, hub: tuple[Path, str]) -> tuple[Path, Path]:
     capture_name = "memory-capture.cmd" if harness == "codex" and os.name == "nt" else "memory-capture.mjs"
     capture = agents / ("codex" if harness == "codex" else "claude-code") / "hooks" / capture_name
     return recall, capture
+
+
+def _command_script(harness: str, hub: tuple[Path, str]) -> Path | None:
+    """The `mem: repo` command hook (UserPromptSubmit); None when the hub predates it. Claude Code and
+    Codex share the hook contract; Antigravity has no hook on a submitted prompt."""
+    if harness not in ("claude-code", "codex"):
+        return None
+    script = _hub_root(hub) / "agents" / "claude-code" / "hooks" / "memory-command.mjs"
+    return script if script.is_file() else None
 
 
 def hooks_file(harness: str) -> Path | None:
@@ -174,7 +183,8 @@ def _command(path: Path) -> str:
 
 
 def wire_hooks(harness: str, hub: tuple[Path, str], action: str = "install") -> int:
-    """Register (or remove) the hub's SessionStart and Stop hooks for a harness. 0 = ok or nothing to do."""
+    """Register (or remove) the hub's hooks for a harness: SessionStart and Stop, plus the
+    UserPromptSubmit `mem: repo` command (Claude Code, Codex) when the hub has it. 0 = ok or nothing to do."""
     path = hooks_file(harness)
     if path is None:
         return 0
@@ -205,6 +215,11 @@ def wire_hooks(harness: str, hub: tuple[Path, str], action: str = "install") -> 
                 hooks.setdefault("Stop", []).append(
                     {"matcher": "", "hooks": [{"type": "command", "command": _command(capture), "timeout": 45}]}
                 )
+                command = _command_script(harness, hub)
+                if command:
+                    hooks.setdefault("UserPromptSubmit", []).append(
+                        {"matcher": "", "hooks": [{"type": "command", "command": _command(command), "timeout": 20}]}
+                    )
         changed = _write_json(path, before, after)
     except ConfigError as e:
         print(yellow(f"  Memory Hub hooks skipped: {e}"))
