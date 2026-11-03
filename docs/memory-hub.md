@@ -52,6 +52,19 @@ Re-run `wire` after starting or stopping the hub to switch. `unwire <harness>` r
 - When wiring, the toolkit takes the `TDAI_*` settings from the environment, falling back to the existing
   `memorycore` entry in `~/.claude.json`, so re-wiring one harness does not lose them in another.
 
+## Skills
+
+The hub's skills follow its hooks: installed when the hub is present, removed when it is absent and by
+`unwire`. Their content lives in the hub repo (`agents/claude-code/skills/<name>/`), like the hook scripts;
+the toolkit copies each folder into the harness's skills dir. A skill the hub does not have yet is skipped.
+
+| Skill | What it does | Harnesses |
+|---|---|---|
+| `memory-hub-recall` | Read a repo's past memory through the `memorycore` MCP tools, always passing `agent` | Claude Code, Codex, Antigravity |
+| `memory-hub-repo` | Run `mem: repo` for the user when the hook did not match (e.g. a leading `- `) | Claude Code (needs `CLAUDE_CODE_SESSION_ID`) |
+
+They are not in this repo's `skills/`, which every `wire` installs whether or not the hub is there.
+
 ## Safety of the config edits
 
 The hook files are the harness's own settings (`~/.claude/settings.json` holds your model, env and plugins), so

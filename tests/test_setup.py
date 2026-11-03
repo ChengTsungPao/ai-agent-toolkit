@@ -758,6 +758,37 @@ def test_wire_memory_hub_hooks_codex_install_and_remove(monkeypatch, tmp_path):
     assert json.loads(hooks_file.read_text()) == {"hooks": {"SessionStart": [own]}}  # Stop key gone, ours gone
 
 
+def test_wire_memory_hub_skills_follow_the_hooks(monkeypatch, tmp_path):
+    m = load()
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setenv(__import__("_common").CODEX_HOME_ENV, str(tmp_path / "codex"))
+    hub = fake_hub(tmp_path / "hub")
+    for name in ("memory-hub-recall", "memory-hub-repo"):
+        src = tmp_path / "hub" / "agents" / "claude-code" / "skills" / name / "SKILL.md"
+        src.parent.mkdir(parents=True)
+        src.write_text(name)
+    claude, codex = tmp_path / ".claude" / "skills", tmp_path / "codex" / "skills"
+
+    assert m._wire_memory_hub_hooks("claude-code", hub) == 0
+    assert m._wire_memory_hub_hooks("claude-code", hub) == 0  # re-wiring replaces, no error
+    assert (claude / "memory-hub-recall" / "SKILL.md").read_text() == "memory-hub-recall"
+    assert (claude / "memory-hub-repo" / "SKILL.md").is_file()
+    assert m._wire_memory_hub_hooks("codex", hub) == 0
+    assert (codex / "memory-hub-recall").is_dir()
+    assert not (codex / "memory-hub-repo").exists()  # needs CLAUDE_CODE_SESSION_ID
+
+    (claude / "my-own-skill").mkdir()
+    assert m._wire_memory_hub_hooks("claude-code", m.NO_HUB, action="remove") == 0
+    assert sorted(p.name for p in claude.iterdir()) == ["my-own-skill"]
+
+
+def test_wire_memory_hub_skills_skips_a_hub_without_them(monkeypatch, tmp_path):
+    m = load()
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    assert m._wire_memory_hub_hooks("claude-code", fake_hub(tmp_path / "hub")) == 0
+    assert not (tmp_path / ".claude" / "skills").exists()
+
+
 def test_wire_memory_hub_hooks_reinstall_does_not_duplicate(monkeypatch, tmp_path):
     import json
 
