@@ -54,16 +54,20 @@ Re-run `wire` after starting or stopping the hub to switch. `unwire <harness>` r
 
 ## Skills
 
-The hub's skills follow its hooks: installed when the hub is present, removed when it is absent and by
-`unwire`. Their content lives in the hub repo (`agents/claude-code/skills/<name>/`), like the hook scripts;
-the toolkit copies each folder into the harness's skills dir. A skill the hub does not have yet is skipped.
+The Memory Hub skills live in this repo under `skills/memory-hub/<name>/` and follow the hub's hooks: `wire`
+copies them into the harness's skills dir (Claude Code, Codex, Antigravity) when the hub is present, and removes
+them when it is absent and on `unwire`. `skills/memory-hub/` has no `SKILL.md` of its own, so the plain
+`skills/` install (every `wire`, hub or not) skips it.
 
-| Skill | What it does | Harnesses |
-|---|---|---|
-| `memory-hub-recall` | Read a repo's past memory through the `memorycore` MCP tools, always passing `agent` | Claude Code, Codex, Antigravity |
-| `memory-hub-repo` | Run `mem: repo` for the user when the hook did not match (e.g. a leading `- `) | Claude Code (needs `CLAUDE_CODE_SESSION_ID`) |
+| Skill | What it does |
+|---|---|
+| `memory-hub-recall` | Read a repo's past memory through the `memorycore` MCP tools, always passing `agent` |
+| `memory-hub-repo` | Run `mem: repo` for the user when the hook did not match (e.g. a leading `- `) or the harness has no such hook (Antigravity) |
 
-They are not in this repo's `skills/`, which every `wire` installs whether or not the hub is there.
+`memory-hub-repo` runs the hub's `hooks/memory-command.mjs` with this conversation's session id:
+`CLAUDE_CODE_SESSION_ID` (Claude Code), `CODEX_THREAD_ID` (Codex), or the conversation id (Antigravity).
+The binding is stored in MemoryCore (the session agent's metadata and bindings); the local
+`~/.memory-tdai/*/sessions/<id>.json` is only a cache, so editing it changes nothing.
 
 ## Safety of the config edits
 

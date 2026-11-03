@@ -17,7 +17,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from _common import IS_WINDOWS, agy_home, codex_home, dim, green, yellow
+from _common import IS_WINDOWS, SKILLS_DIR, agy_home, codex_home, dim, green, yellow
 
 HUB_ENV = (  # env the `memorycore` MCP entry carries, in this order
     "TDAI_ENDPOINT",
@@ -31,9 +31,8 @@ HUB_ENV = (  # env the `memorycore` MCP entry carries, in this order
 )
 HOOK_SCRIPTS = ("memory-recall.mjs", "memory-capture.mjs", "memory-capture.cmd", "memory-command.mjs")
 EVENTS = ("SessionStart", "Stop", "UserPromptSubmit")
-# Skills in the hub repo (agents/claude-code/skills/<name>) -> the harnesses that get them.
-# memory-hub-repo needs CLAUDE_CODE_SESSION_ID, so only Claude Code.
-SKILLS = {"memory-hub-recall": ("claude-code", "codex", "antigravity"), "memory-hub-repo": ("claude-code",)}
+# Skills installed only with the hub, like its hooks. Not skills/<name>: those install on every wire.
+HUB_SKILLS_DIR = SKILLS_DIR / "memory-hub"
 NO_HUB = (Path("."), "node")  # stand-in hub for "remove": only the harness matters then
 
 
@@ -193,31 +192,34 @@ def skills_dir(harness: str) -> Path | None:
     }.get(harness)
 
 
-def wire_skills(harness: str, hub: tuple[Path, str], action: str = "install") -> None:
-    """Copy (or remove) the hub's skills for a harness. A skill the hub does not have is skipped."""
+def hub_skills() -> list[Path]:
+    """The Memory Hub skill folders (skills/memory-hub/<name>/SKILL.md)."""
+    if not HUB_SKILLS_DIR.is_dir():
+        return []
+    return sorted(d for d in HUB_SKILLS_DIR.iterdir() if (d / "SKILL.md").is_file())
+
+
+def wire_skills(harness: str, action: str = "install") -> None:
+    """Copy (or remove) the Memory Hub skills for a harness."""
     dest = skills_dir(harness)
     if dest is None:
         return
-    for name, harnesses in SKILLS.items():
-        target = dest / name
-        install = action == "install" and harness in harnesses
-        if install:  # NO_HUB has no root, so only look one up when installing
-            src = _hub_root(hub) / "agents" / "claude-code" / "skills" / name
-            install = (src / "SKILL.md").is_file()
+    for src in hub_skills():
+        target = dest / src.name
         if target.exists():
             shutil.rmtree(target)
-            if not install:
+            if action != "install":
                 print(dim(f"  Memory Hub skill removed: {target}"))
-        if install:
+        if action == "install":
             shutil.copytree(src, target)
             print(green(f"  Memory Hub skill → {target}"))
 
 
 def wire_hooks(harness: str, hub: tuple[Path, str], action: str = "install") -> int:
     """Register (or remove) the hub's hooks for a harness: SessionStart and Stop, plus the
-    UserPromptSubmit `mem: repo` command (Claude Code, Codex) when the hub has it. The hub's skills
-    follow the hooks (see wire_skills). 0 = ok or nothing to do."""
-    wire_skills(harness, hub, action)
+    UserPromptSubmit `mem: repo` command (Claude Code, Codex) when the hub has it. The Memory Hub
+    skills follow the hooks (see wire_skills). 0 = ok or nothing to do."""
+    wire_skills(harness, action)
     path = hooks_file(harness)
     if path is None:
         return 0
