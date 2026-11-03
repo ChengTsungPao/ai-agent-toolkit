@@ -12,6 +12,10 @@ Two kinds of skill:
   install time, so you always get the **latest** version. Not auto-updated
   afterwards — re-run `setup.py skills` to refresh.
 
+Exception: `memory-hub/` holds the Personal Memory Hub skills. It has no
+`SKILL.md` of its own, so the plain install skips it; `wire` installs its
+sub-folders only when the hub is present (see `docs/memory-hub.md`).
+
 ## Layout
 
 One folder per skill, each containing a `SKILL.md` with frontmatter:

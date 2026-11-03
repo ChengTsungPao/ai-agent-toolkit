@@ -17,7 +17,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from _common import IS_WINDOWS, agy_home, codex_home, dim, green, yellow
+from _common import IS_WINDOWS, SKILLS_DIR, agy_home, codex_home, dim, green, yellow
 
 HUB_ENV = (  # env the `memorycore` MCP entry carries, in this order
     "TDAI_ENDPOINT",
@@ -31,6 +31,8 @@ HUB_ENV = (  # env the `memorycore` MCP entry carries, in this order
 )
 HOOK_SCRIPTS = ("memory-recall.mjs", "memory-capture.mjs", "memory-capture.cmd", "memory-command.mjs")
 EVENTS = ("SessionStart", "Stop", "UserPromptSubmit")
+# Skills installed only with the hub, like its hooks. Not skills/<name>: those install on every wire.
+HUB_SKILLS_DIR = SKILLS_DIR / "memory-hub"
 NO_HUB = (Path("."), "node")  # stand-in hub for "remove": only the harness matters then
 
 
@@ -182,9 +184,42 @@ def _command(path: Path) -> str:
     return f"{node} {quoted}"
 
 
+def skills_dir(harness: str) -> Path | None:
+    return {
+        "claude-code": Path.home() / ".claude" / "skills",
+        "codex": codex_home() / "skills",
+        "antigravity": agy_home() / "skills",
+    }.get(harness)
+
+
+def hub_skills() -> list[Path]:
+    """The Memory Hub skill folders (skills/memory-hub/<name>/SKILL.md)."""
+    if not HUB_SKILLS_DIR.is_dir():
+        return []
+    return sorted(d for d in HUB_SKILLS_DIR.iterdir() if (d / "SKILL.md").is_file())
+
+
+def wire_skills(harness: str, action: str = "install") -> None:
+    """Copy (or remove) the Memory Hub skills for a harness."""
+    dest = skills_dir(harness)
+    if dest is None:
+        return
+    for src in hub_skills():
+        target = dest / src.name
+        if target.exists():
+            shutil.rmtree(target)
+            if action != "install":
+                print(dim(f"  Memory Hub skill removed: {target}"))
+        if action == "install":
+            shutil.copytree(src, target)
+            print(green(f"  Memory Hub skill → {target}"))
+
+
 def wire_hooks(harness: str, hub: tuple[Path, str], action: str = "install") -> int:
     """Register (or remove) the hub's hooks for a harness: SessionStart and Stop, plus the
-    UserPromptSubmit `mem: repo` command (Claude Code, Codex) when the hub has it. 0 = ok or nothing to do."""
+    UserPromptSubmit `mem: repo` command (Claude Code, Codex) when the hub has it. The Memory Hub
+    skills follow the hooks (see wire_skills). 0 = ok or nothing to do."""
+    wire_skills(harness, action)
     path = hooks_file(harness)
     if path is None:
         return 0

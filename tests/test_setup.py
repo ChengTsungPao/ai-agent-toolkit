@@ -758,6 +758,39 @@ def test_wire_memory_hub_hooks_codex_install_and_remove(monkeypatch, tmp_path):
     assert json.loads(hooks_file.read_text()) == {"hooks": {"SessionStart": [own]}}  # Stop key gone, ours gone
 
 
+def test_wire_memory_hub_skills_follow_the_hooks(monkeypatch, tmp_path):
+    m = load()
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setenv(__import__("_common").CODEX_HOME_ENV, str(tmp_path / "codex"))
+    monkeypatch.setenv("AGY_CONFIG_HOME", str(tmp_path / "agy"))
+    hub = fake_hub(tmp_path / "hub")
+    names = ["memory-hub-recall", "memory-hub-repo"]
+    dirs = {
+        "claude-code": tmp_path / ".claude" / "skills",
+        "codex": tmp_path / "codex" / "skills",
+        "antigravity": tmp_path / "agy" / "skills",
+    }
+    source = __import__("_memory_hub").HUB_SKILLS_DIR
+
+    for harness, d in dirs.items():
+        assert m._wire_memory_hub_hooks(harness, hub) == 0
+        assert m._wire_memory_hub_hooks(harness, hub) == 0  # re-wiring replaces, no error
+        for name in names:
+            assert (d / name / "SKILL.md").read_bytes() == (source / name / "SKILL.md").read_bytes()
+
+    (dirs["claude-code"] / "my-own-skill").mkdir()
+    for harness, d in dirs.items():
+        assert m._wire_memory_hub_hooks(harness, m.NO_HUB, action="remove") == 0
+        assert not any((d / name).exists() for name in names)
+    assert (dirs["claude-code"] / "my-own-skill").is_dir()
+
+
+def test_memory_hub_skills_are_not_installed_with_every_wire():
+    m = load()
+    names = {s.name for s in m.bundled_skills()}
+    assert names.isdisjoint({"memory-hub", "memory-hub-recall", "memory-hub-repo"})
+
+
 def test_wire_memory_hub_hooks_reinstall_does_not_duplicate(monkeypatch, tmp_path):
     import json
 
