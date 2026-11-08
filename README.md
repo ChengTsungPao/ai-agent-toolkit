@@ -41,6 +41,7 @@ it, then runs everything on a pinned Python.
 | **graphify** | tool | codebase → queryable knowledge graph (tree-sitter + Leiden), `/graphify` |
 | **CodeGraph** | MCP | live auto-syncing code graph — "who calls X / impact of changing Y" in one call (overlaps graphify; being compared) |
 | **grill-me** | skill | relentless interview to sharpen a plan before coding, `/grill-me` |
+| **english-coach** | skill | answers, then corrects your English and teaches one phrase or tip, `/english-coach` |
 | **superpowers** | plugin | obra's agentic dev methodology — 20+ auto-activating skills |
 | Karpathy rules | guidelines | think before coding · simplicity first · surgical changes · goal-driven |
 

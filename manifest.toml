@@ -215,6 +215,11 @@ id    = "grill-me"
 repo  = "https://github.com/mattpocock/skills"
 paths = ["skills/productivity/grill-me", "skills/productivity/grilling"]
 
+[[skill]]
+id    = "english-coach"
+repo  = "https://github.com/tianmind-studio/english-coach"
+paths = ["english-coach"]
+
 
 # ════════════════════════════════ PLUGINS ════════════════════════════════
 # Installed through each harness's own plugin system (which also updates them).
