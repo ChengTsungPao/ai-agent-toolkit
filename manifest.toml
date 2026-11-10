@@ -206,6 +206,28 @@ args    = ["/c", "playwright-mcp", "--extension", "--browser", "msedge"]
 [tool.usage]
 short = "Ask the agent to drive a browser: open a URL, click / fill a form, wait for an element, screenshot, or generate a Playwright test. Add `--headless` for no window, `--device \"iPhone 15\"` to emulate. Needs the chosen browser installed (system Chrome by default). No token."
 
+# ---- LinkedIn MCP -------------------------------------------------- mcp
+# Community project (stickerdaniel/linkedin-mcp-server), NOT affiliated with
+# LinkedIn. It drives a real logged-in browser session (Patchright, a stealth
+# Playwright fork) — LinkedIn's User Agreement forbids automated access and
+# accounts CAN be restricted or banned. Personal, low-volume use only, at your
+# own risk. No API keys — auth is a one-time browser login, session on disk.
+[[tool]]
+id      = "linkedin-mcp"
+name    = "LinkedIn MCP"
+kind    = "mcp"
+purpose = "Community MCP server (stickerdaniel/linkedin-mcp-server) giving the agent LinkedIn access through your own logged-in browser session: read profiles / companies / job posts + details, search people / companies / jobs / posts, read your inbox and feed. Also exposes write actions (send message, send connection request) — treat it as able to act on your account. Runs a stealth headless browser (Patchright) locally; no LinkedIn API keys, no third-party service. NOTE: LinkedIn's User Agreement prohibits automated access; accounts using tools like this can be restricted or banned. Personal, low-volume use only, at your own risk."
+verify  = "mcp-server-linkedin --help"
+docs    = "docs/linkedin-mcp.md"
+setup   = "One-time login (no secrets in config): run `mcp-server-linkedin --login` to sign in via a browser window (session saved to ~/.linkedin-mcp/), or `mcp-server-linkedin --import-from-browser edge` to reuse an already-logged-in Chromium browser (chrome/edge/brave/…). `mcp-server-linkedin --status` shows session state; `--logout` clears it. Re-login when the session expires."
+[tool.install]
+default = "uv tool install mcp-server-linkedin"
+[tool.mcp]
+command = "mcp-server-linkedin"
+args    = []
+[tool.usage]
+short = "One-time: `mcp-server-linkedin --login` (or `--import-from-browser edge`). Then ask the agent to look up a LinkedIn profile / company / job, or search — it calls get_person_profile, get_company_profile, search_jobs, get_job_details, get_feed, get_inbox, … Keep the volume low. Writes (send_message, connect_with_person) exist — be deliberate about them."
+
 
 # ═════════════════════════════════ SKILLS ════════════════════════════════
 # Cloned fresh from `repo` each run; `paths` are the sub-dirs to copy into the
